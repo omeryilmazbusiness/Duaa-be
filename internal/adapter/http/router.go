@@ -13,6 +13,7 @@ import (
 	appcafedef "github.com/dua-os/dua-os-be/internal/app/cafedef"
 	appcafehandover "github.com/dua-os/dua-os-be/internal/app/cafehandover"
 	appcafeintake "github.com/dua-os/dua-os-be/internal/app/cafeintake"
+	appcafepos "github.com/dua-os/dua-os-be/internal/app/cafepos"
 	appcafeqr "github.com/dua-os/dua-os-be/internal/app/cafeqr"
 	appcash "github.com/dua-os/dua-os-be/internal/app/cash"
 	appdashboard "github.com/dua-os/dua-os-be/internal/app/dashboard"
@@ -44,6 +45,7 @@ type API struct {
 	Intake    *appcafeintake.Service
 	Handover  *appcafehandover.Service
 	Check     *appcafecheck.Service
+	POS       *appcafepos.Service
 	Actors    *actor.Loader
 	JWT       *authn.JWT
 }
@@ -143,6 +145,9 @@ func NewRouter(cfg config.Config, api API) http.Handler {
 				r.Get("/cafe/checklist", api.getCafeChecklist)
 				r.Put("/cafe/checklist", api.putCafeChecklist)
 				r.Post("/cafe/checklist/toggle", api.toggleCafeChecklist)
+				r.Get("/cafe/pos", api.getCafePOS)
+				r.Post("/cafe/pos/tickets", api.recordCafePOS)
+				r.Post("/cafe/pos/close", api.closeCafePOS)
 			})
 		})
 	})

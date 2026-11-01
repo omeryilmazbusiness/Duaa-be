@@ -93,6 +93,14 @@ func Format(in Input) string {
 			}
 			fmt.Fprintf(&b, "Tile %s: %s (value %d)\n", line(t.Module), state, t.Value)
 		}
+		if s := d.Sales; s != nil {
+			if s.Status == "live" {
+				fmt.Fprintf(&b, "POS day %s: live tickets=%d sales=%d returns=%d net=%d basket=%d closed=%t (recorded only)\n",
+					line(s.BusinessDate), s.TicketCount, s.SaleCount, s.ReturnCount, s.Net, s.Basket, s.Closed)
+			} else {
+				b.WriteString("POS: not connected\n")
+			}
+		}
 		if c := d.Cash; c != nil {
 			fmt.Fprintf(&b, "Till close for %s: %s", line(c.BusinessDate), line(c.Status))
 			if c.CountedAmount != nil {

@@ -10,6 +10,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/dua-os/dua-os-be/internal/app/actor"
+	"github.com/dua-os/dua-os-be/internal/domain/cafe"
 	"github.com/dua-os/dua-os-be/internal/domain/finance"
 	"github.com/dua-os/dua-os-be/internal/domain/identity"
 	"github.com/dua-os/dua-os-be/internal/domain/opsreport"
@@ -28,14 +29,15 @@ type Service struct {
 	users     UserReader
 	cash      CashReader
 	approvals ApprovalReader
+	sales     SalesReader
 	clock     clock.Clock
 }
 
-func New(tasks TaskReader, members MembershipReader, reports ReportReader, users UserReader, cash CashReader, approvals ApprovalReader, clk clock.Clock) *Service {
+func New(tasks TaskReader, members MembershipReader, reports ReportReader, users UserReader, cash CashReader, approvals ApprovalReader, sales SalesReader, clk clock.Clock) *Service {
 	if clk == nil {
 		clk = clock.System{}
 	}
-	return &Service{tasks: tasks, members: members, reports: reports, users: users, cash: cash, approvals: approvals, clock: clk}
+	return &Service{tasks: tasks, members: members, reports: reports, users: users, cash: cash, approvals: approvals, sales: sales, clock: clk}
 }
 
 type TileView struct {
@@ -74,6 +76,25 @@ type CashView struct {
 	ClosedAt       string `json:"closedAt,omitempty"`
 }
 
+type SalesView struct {
+	Status       string `json:"status"`
+	ReasonKey    string `json:"reasonKey,omitempty"`
+	BusinessDate string `json:"businessDate"`
+	TicketCount  int    `json:"ticketCount"`
+	SaleCount    int    `json:"saleCount"`
+	ReturnCount  int    `json:"returnCount"`
+	Gross        int64  `json:"gross"`
+	Discount     int64  `json:"discount"`
+	Returns      int64  `json:"returns"`
+	Net          int64  `json:"net"`
+	Basket       int64  `json:"basket"`
+	Cash         int64  `json:"cash"`
+	Card         int64  `json:"card"`
+	Other        int64  `json:"other"`
+	Closed       bool   `json:"closed"`
+	ClosedAt     string `json:"closedAt,omitempty"`
+}
+
 type ApprovalView struct {
 	ID       string `json:"id"`
 	Title    string `json:"title"`
@@ -92,6 +113,7 @@ type View struct {
 	Pulse       PulseView      `json:"pulse"`
 	Tiles       []TileView     `json:"tiles"`
 	Cash        *CashView      `json:"cash,omitempty"`
+	Sales       *SalesView     `json:"sales,omitempty"`
 	Approvals   []ApprovalView `json:"approvals,omitempty"`
 	Workload    []LoadView     `json:"workload"`
 }
@@ -111,6 +133,9 @@ func (s *Service) ForGM(ctx context.Context, ac actor.Context) (View, error) {
 		closeRow  finance.Close
 		closeErr  error
 		approvals []finance.Approval
+		tickets   []cafe.Ticket
+		posClose  cafe.POSClose
+		posErr    error
 	)
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -148,6 +173,21 @@ func (s *Service) ForGM(ctx context.Context, ac actor.Context) (View, error) {
 			return err
 		})
 	}
+	if seeMoney && s.sales != nil {
+		g.Go(func() error {
+			list, err := s.sales.ListPOSTickets(gctx, ac.Workspace.ID, date)
+			tickets = list
+			return err
+		})
+		g.Go(func() error {
+			row, err := s.sales.GetPOSClose(gctx, ac.Workspace.ID, date)
+			posClose, posErr = row, err
+			if errors.Is(err, errx.ErrNotFound) {
+				return nil
+			}
+			return err
+		})
+	}
 	if err := g.Wait(); err != nil {
 		return View{}, err
 	}
@@ -171,6 +211,27 @@ func (s *Service) ForGM(ctx context.Context, ac actor.Context) (View, error) {
 	pulse.PendingApprovals = pending
 	sort.Slice(packViews, func(i, j int) bool { return packViews[i].Amount > packViews[j].Amount })
 
+	var salesView *SalesView
+	if seeMoney {
+		salesView = &SalesView{Status: "unavailable", ReasonKey: "dash.posNotWired", BusinessDate: date}
+		day := cafe.SummarizeTickets(date, tickets)
+		if posErr == nil && posClose.ID != id.Zero() {
+			tenders := day
+			day = posClose.DaySales()
+			day.Cash, day.Card, day.Other = tenders.Cash, tenders.Card, tenders.Other
+		}
+		if day.Live() {
+			salesView = &SalesView{
+				Status: "live", BusinessDate: date, TicketCount: day.TicketCount, SaleCount: day.SaleCount,
+				ReturnCount: day.ReturnCount, Gross: day.Gross, Discount: day.Discount, Returns: day.Returns,
+				Net: day.Net, Basket: day.Basket, Cash: day.Cash, Card: day.Card, Other: day.Other, Closed: day.Closed,
+			}
+			if day.Closed {
+				salesView.ClosedAt = posClose.ClosedAt.UTC().Format(time.RFC3339)
+			}
+		}
+	}
+
 	var cashView *CashView
 	if seeMoney {
 		cashView = &CashView{Status: "unavailable", ReasonKey: "brief.cashNotClosed", BusinessDate: date}
@@ -192,7 +253,7 @@ func (s *Service) ForGM(ctx context.Context, ac actor.Context) (View, error) {
 		if moneyModule(mod) && !seeMoney {
 			continue
 		}
-		tiles = append(tiles, s.tile(mod, pulse, cashView, pending))
+		tiles = append(tiles, s.tile(mod, pulse, cashView, salesView, pending))
 	}
 
 	out := View{
@@ -202,6 +263,7 @@ func (s *Service) ForGM(ctx context.Context, ac actor.Context) (View, error) {
 		Pulse:       pulse,
 		Tiles:       tiles,
 		Cash:        cashView,
+		Sales:       salesView,
 		Workload:    load,
 	}
 	if seeMoney {
@@ -219,7 +281,7 @@ func moneyModule(mod tenancy.DashboardModule) bool {
 	}
 }
 
-func (s *Service) tile(mod tenancy.DashboardModule, pulse PulseView, cash *CashView, pending int) TileView {
+func (s *Service) tile(mod tenancy.DashboardModule, pulse PulseView, cash *CashView, sales *SalesView, pending int) TileView {
 	switch mod {
 	case tenancy.ModulePulse:
 		return TileView{Module: string(mod), Status: "live", Value: int64(pulse.OverdueTasks), LabelKey: "overdue"}
@@ -236,7 +298,13 @@ func (s *Service) tile(mod tenancy.DashboardModule, pulse PulseView, cash *CashV
 	case tenancy.ModuleApprovals:
 		return TileView{Module: string(mod), Status: "live", Value: int64(pending), LabelKey: "pendingApprovals"}
 	case tenancy.ModuleSales:
-		return TileView{Module: string(mod), Status: "unavailable", ReasonKey: "dash.posNotWired", LabelKey: "sales"}
+		tile := TileView{Module: string(mod), Status: "unavailable", ReasonKey: "dash.posNotWired", LabelKey: "sales"}
+		if sales != nil && sales.Status == "live" {
+			tile.Status = "live"
+			tile.ReasonKey = ""
+			tile.Value = sales.Net
+		}
+		return tile
 	case tenancy.ModuleWaste:
 		return TileView{Module: string(mod), Status: "unavailable", ReasonKey: "dash.wasteNotWired", LabelKey: "waste"}
 	case tenancy.ModuleOccupancy:

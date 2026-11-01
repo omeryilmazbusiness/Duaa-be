@@ -23,11 +23,11 @@ func TestEmployeeCannotManageStaff(t *testing.T) {
 }
 
 func TestOnlyGMTouchesFinance(t *testing.T) {
-	if !rbac.Allows(staffscope.GeneralManager, rbac.CloseCash) || !rbac.Allows(staffscope.GeneralManager, rbac.ActApproval) {
-		t.Fatal("GM closes cash and acts on spend packs")
+	if !rbac.Allows(staffscope.GeneralManager, rbac.CloseCash) || !rbac.Allows(staffscope.GeneralManager, rbac.ActApproval) || !rbac.Allows(staffscope.GeneralManager, rbac.RecordPOS) {
+		t.Fatal("GM closes cash, records POS and acts on spend packs")
 	}
-	if rbac.Allows(staffscope.DepartmentManager, rbac.CloseCash) || rbac.Allows(staffscope.DepartmentManager, rbac.ActApproval) {
-		t.Fatal("department manager must not close till or approve spend")
+	if rbac.Allows(staffscope.DepartmentManager, rbac.CloseCash) || rbac.Allows(staffscope.DepartmentManager, rbac.ActApproval) || rbac.Allows(staffscope.DepartmentManager, rbac.RecordPOS) {
+		t.Fatal("department manager must not close till, record POS or approve spend")
 	}
 	if !rbac.Allows(staffscope.DepartmentManager, rbac.SubmitApproval) {
 		t.Fatal("department manager may submit a spend pack")

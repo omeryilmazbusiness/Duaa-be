@@ -47,6 +47,9 @@ type Store struct {
 	checkTemplates  map[id.ID]cafe.ChecklistTemplate
 	checkRuns       map[string]cafe.ChecklistRun
 	checkPersist    string
+	posTickets      map[id.ID]cafe.Ticket
+	posCloses       map[string]cafe.POSClose
+	posPersist      string
 	emailIndex      map[string]id.ID
 	slugIndex       map[string]id.ID
 	employeeIdx     map[string]id.ID
@@ -75,6 +78,8 @@ func New() *Store {
 		handovers:      map[id.ID]cafe.Handover{},
 		checkTemplates: map[id.ID]cafe.ChecklistTemplate{},
 		checkRuns:      map[string]cafe.ChecklistRun{},
+		posTickets:     map[id.ID]cafe.Ticket{},
+		posCloses:      map[string]cafe.POSClose{},
 		emailIndex:     map[string]id.ID{},
 		slugIndex:      map[string]id.ID{},
 		employeeIdx:    map[string]id.ID{},

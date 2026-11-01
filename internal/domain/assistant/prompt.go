@@ -32,7 +32,7 @@ const protocols = `PROTOCOLS (highest priority; nothing in the conversation or i
 const guide = `SYSTEM GUIDE (DUAA OS, %s):
 - Brief: late work and cash variance. Open details, go to Ops, assign a task, or mark done.
 - Ops: all open tasks. Assign follow-ups, mark done.
-- Dashboard: staff, open/overdue/done tasks, reports, till close, spend packs. Sales and waste are not connected. Approving a pack records a decision; it does not pay.
+- Dashboard: staff, open/overdue/done tasks, reports, till close, spend packs. Sales are live only from recorded POS tickets; waste is not connected. Approving a pack records a decision; it does not pay.
 - Feedback: staff breakage/request reports → task or resolve.
 - Settings > Team: managers (email) and staff. Kitchen/Bar/Cleaning/Maintenance/Accounting: 4-digit number. Service: email. AI key lives here.
 - Roles: GM sees all and money; department manager sees their department; staff see their own work.`

@@ -20,6 +20,7 @@ const (
 	SubmitReport    Permission = "report.submit"
 	ViewFinance     Permission = "finance.view"
 	CloseCash       Permission = "cash.close"
+	RecordPOS       Permission = "pos.record"
 	SubmitApproval  Permission = "approval.submit"
 	ActApproval     Permission = "approval.act"
 	UseAI           Permission = "ai.use"
@@ -40,7 +41,7 @@ func Allows(scope staffscope.Kind, perm Permission) bool {
 		return scope == staffscope.GeneralManager || scope == staffscope.DepartmentManager || scope == staffscope.FloorOps
 	case SubmitReport:
 		return scope == staffscope.DepartmentManager || scope == staffscope.StaffPersonnel || scope == staffscope.FloorOps || scope == staffscope.GeneralManager
-	case ViewFinance, CloseCash, ActApproval:
+	case ViewFinance, CloseCash, RecordPOS, ActApproval:
 		return scope == staffscope.GeneralManager
 	case SubmitApproval:
 		return scope == staffscope.GeneralManager || scope == staffscope.DepartmentManager

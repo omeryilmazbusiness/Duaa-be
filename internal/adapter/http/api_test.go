@@ -21,6 +21,7 @@ import (
 	appcafedef "github.com/dua-os/dua-os-be/internal/app/cafedef"
 	appcafehandover "github.com/dua-os/dua-os-be/internal/app/cafehandover"
 	appcafeintake "github.com/dua-os/dua-os-be/internal/app/cafeintake"
+	appcafepos "github.com/dua-os/dua-os-be/internal/app/cafepos"
 	appcafeqr "github.com/dua-os/dua-os-be/internal/app/cafeqr"
 	appcash "github.com/dua-os/dua-os-be/internal/app/cash"
 	appdashboard "github.com/dua-os/dua-os-be/internal/app/dashboard"
@@ -74,7 +75,7 @@ func newHarness(t *testing.T) harness {
 		appbrief.CashSignal{Closes: store},
 	)
 	reports := appreport.New(store, store, store, harnessAssigner{tasks: tasks}, clk)
-	dash := appdashboard.New(store, store, store, store, store, store, clk)
+	dash := appdashboard.New(store, store, store, store, store, store, store, clk)
 	vault, err := secretbox.New("0123456789abcdef0123456789abcdef")
 	if err != nil {
 		t.Fatal(err)
@@ -96,6 +97,7 @@ func newHarness(t *testing.T) harness {
 		Intake:    appcafeintake.New(store, store, store, clk),
 		Handover:  appcafehandover.New(store, store, store, store, clk),
 		Check:     appcafecheck.New(store, store, store, clk),
+		POS:       appcafepos.New(store, store, clk),
 		Actors:    actor.NewLoader(store, reg),
 		JWT:       tokens,
 	}
@@ -828,5 +830,94 @@ func TestSpendPackStage2EvidenceVersionNoDuplicate(t *testing.T) {
 	decode(t, dash, &view)
 	if packs, _ := view["approvals"].([]any); len(packs) != 0 {
 		t.Fatalf("approved pack must leave the pending inbox: %v", packs)
+	}
+}
+
+func TestPOSBindCAF01RecordedTicketsOnly(t *testing.T) {
+	h := newHarness(t)
+	cafeID := h.seed.CafeID.String()
+	login := post(h.handler, "/v1/auth/login", map[string]string{
+		"email": h.seed.GMEmail, "password": h.seed.GMPassword,
+	}, "")
+	var gm wrapLogin
+	decode(t, login, &gm)
+
+	dash := get(h.handler, "/v1/workspaces/"+cafeID+"/executive/dashboard", gm.Token)
+	var view map[string]any
+	decode(t, dash, &view)
+	sales, _ := view["sales"].(map[string]any)
+	if sales["status"] != "unavailable" {
+		t.Fatalf("empty POS must stay unavailable: %v", sales)
+	}
+	for _, raw := range view["tiles"].([]any) {
+		tile, _ := raw.(map[string]any)
+		if tile["module"] == "sales" && tile["status"] == "live" {
+			t.Fatal("sales tile must not go live with no tickets")
+		}
+		if tile["module"] == "waste" && tile["status"] == "live" {
+			t.Fatal("waste stays unwired")
+		}
+	}
+
+	createdEmp := post(h.handler, "/v1/workspaces/"+cafeID+"/staff", map[string]string{
+		"firstName": "Zain", "lastName": "Floor", "staffDepartment": "BAR", "employeeNumber": "1077",
+	}, gm.Token)
+	if createdEmp.Code != 201 {
+		t.Fatalf("employee %d %s", createdEmp.Code, createdEmp.Body.String())
+	}
+	empLogin := post(h.handler, "/v1/auth/staff-login", map[string]string{
+		"workspaceSlug": "duaa-cafe", "employeeNumber": "1077",
+	}, "")
+	var emp wrapLogin
+	decode(t, empLogin, &emp)
+	if post(h.handler, "/v1/workspaces/"+cafeID+"/cafe/pos/tickets", map[string]any{
+		"externalRef": "S-1", "kind": "sale", "tender": "cash", "lines": 2, "gross": 12000, "discount": 2000,
+	}, emp.Token).Code != 403 {
+		t.Fatal("staff must not record POS")
+	}
+	emptyClose := post(h.handler, "/v1/workspaces/"+cafeID+"/cafe/pos/close", map[string]any{}, gm.Token)
+	if emptyClose.Code != 422 {
+		t.Fatalf("empty POS day cannot close, got %d %s", emptyClose.Code, emptyClose.Body.String())
+	}
+
+	sale := post(h.handler, "/v1/workspaces/"+cafeID+"/cafe/pos/tickets", map[string]any{
+		"externalRef": "S-1", "kind": "sale", "tender": "cash", "lines": 2, "gross": 12000, "discount": 2000,
+	}, gm.Token)
+	if sale.Code != 201 {
+		t.Fatalf("sale %d %s", sale.Code, sale.Body.String())
+	}
+	var live map[string]any
+	decode(t, sale, &live)
+	if live["status"] != "live" || live["net"] != float64(10000) || live["basket"] != float64(10000) {
+		t.Fatalf("sale view=%v", live)
+	}
+	if post(h.handler, "/v1/workspaces/"+cafeID+"/cafe/pos/tickets", map[string]any{
+		"externalRef": "s-1", "kind": "sale", "tender": "card", "lines": 1, "gross": 1, "discount": 0,
+	}, gm.Token).Code != 409 {
+		t.Fatal("duplicate ticket")
+	}
+	ret := post(h.handler, "/v1/workspaces/"+cafeID+"/cafe/pos/tickets", map[string]any{
+		"externalRef": "R-1", "kind": "return", "tender": "cash", "lines": 1, "gross": 1000, "discount": 0,
+	}, gm.Token)
+	if ret.Code != 201 {
+		t.Fatalf("return %d %s", ret.Code, ret.Body.String())
+	}
+
+	liveDash := get(h.handler, "/v1/workspaces/"+cafeID+"/executive/dashboard", gm.Token)
+	var after map[string]any
+	decode(t, liveDash, &after)
+	sales, _ = after["sales"].(map[string]any)
+	if sales["status"] != "live" || sales["net"] != float64(9000) || sales["returns"] != float64(1000) {
+		t.Fatalf("dashboard sales=%v", sales)
+	}
+
+	closed := post(h.handler, "/v1/workspaces/"+cafeID+"/cafe/pos/close", map[string]any{}, gm.Token)
+	if closed.Code != 200 {
+		t.Fatalf("close %d %s", closed.Code, closed.Body.String())
+	}
+	if post(h.handler, "/v1/workspaces/"+cafeID+"/cafe/pos/tickets", map[string]any{
+		"externalRef": "S-2", "kind": "sale", "tender": "card", "lines": 1, "gross": 500, "discount": 0,
+	}, gm.Token).Code != 409 {
+		t.Fatal("closed day must reject new tickets")
 	}
 }

@@ -3,6 +3,7 @@ package dashboard
 import (
 	"context"
 
+	"github.com/dua-os/dua-os-be/internal/domain/cafe"
 	"github.com/dua-os/dua-os-be/internal/domain/finance"
 	"github.com/dua-os/dua-os-be/internal/domain/identity"
 	"github.com/dua-os/dua-os-be/internal/domain/opsreport"
@@ -32,4 +33,9 @@ type CashReader interface {
 
 type ApprovalReader interface {
 	ListApprovals(ctx context.Context, workspaceID id.ID) ([]finance.Approval, error)
+}
+
+type SalesReader interface {
+	ListPOSTickets(ctx context.Context, workspaceID id.ID, businessDate string) ([]cafe.Ticket, error)
+	GetPOSClose(ctx context.Context, workspaceID id.ID, businessDate string) (cafe.POSClose, error)
 }

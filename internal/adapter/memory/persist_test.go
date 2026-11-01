@@ -202,6 +202,32 @@ func TestChecklistSurvivesReload(t *testing.T) {
 	}
 }
 
+func TestPOSTicketsSurviveReload(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cafe-pos.json")
+	wid := id.MustParse("22222222-2222-4222-8222-222222222222")
+	now := time.Date(2026, 11, 2, 10, 0, 0, 0, time.UTC)
+	a := memory.New()
+	if err := a.AttachPOSPersist(path); err != nil {
+		t.Fatal(err)
+	}
+	ticket, err := cafe.NewTicket(wid, id.New(), "2026-11-02", "S-1", "sale", "cash", 2, 8000, 0, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.CreatePOSTicket(t.Context(), ticket); err != nil {
+		t.Fatal(err)
+	}
+	b := memory.New()
+	if err := b.AttachPOSPersist(path); err != nil {
+		t.Fatal(err)
+	}
+	list, err := b.ListPOSTickets(t.Context(), wid, "2026-11-02")
+	if err != nil || len(list) != 1 || list[0].Net != 8000 {
+		t.Fatalf("reload=%+v err=%v", list, err)
+	}
+}
+
 func TestApprovalsSurviveReload(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "spend-approvals.json")
