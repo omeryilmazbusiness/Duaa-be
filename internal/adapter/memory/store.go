@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/dua-os/dua-os-be/internal/domain/assistant"
+	"github.com/dua-os/dua-os-be/internal/domain/cafe"
 	"github.com/dua-os/dua-os-be/internal/domain/executive"
 	"github.com/dua-os/dua-os-be/internal/domain/finance"
 	"github.com/dua-os/dua-os-be/internal/domain/identity"
@@ -17,23 +18,34 @@ import (
 
 // Store is a thread-safe in-memory adapter used by tests and local boots without Postgres.
 type Store struct {
-	mu          sync.RWMutex
-	orgs        map[id.ID]tenancy.Organization
-	workspaces  map[id.ID]tenancy.Workspace
-	users       map[id.ID]identity.User
-	memberships map[id.ID]identity.Membership
-	tasks       map[id.ID]work.Task
-	routines    map[id.ID]work.Routine
-	decisions   map[id.ID]executive.Decision
-	reports     map[id.ID]opsreport.Report
-	closes      map[string]finance.Close
-	approvals   map[id.ID]finance.Approval
-	aiSettings  map[id.ID]assistant.Settings
-	aiUsage     map[string]int
-	aiPersist   string
-	emailIndex  map[string]id.ID
-	slugIndex   map[string]id.ID
-	employeeIdx map[string]id.ID
+	mu              sync.RWMutex
+	orgs            map[id.ID]tenancy.Organization
+	workspaces      map[id.ID]tenancy.Workspace
+	users           map[id.ID]identity.User
+	memberships     map[id.ID]identity.Membership
+	tasks           map[id.ID]work.Task
+	routines        map[id.ID]work.Routine
+	decisions       map[id.ID]executive.Decision
+	reports         map[id.ID]opsreport.Report
+	closes          map[string]finance.Close
+	approvals       map[id.ID]finance.Approval
+	aiSettings      map[id.ID]assistant.Settings
+	aiUsage         map[string]int
+	aiPersist       string
+	cafeDefs        map[id.ID]cafe.Definition
+	cafePersist     string
+	qrCodes         map[id.ID]cafe.Code
+	qrByToken       map[string]id.ID
+	voices          map[id.ID]cafe.Voice
+	recoveries      map[id.ID]cafe.Recovery
+	qrPersist       string
+	intakes         map[string]cafe.Intake
+	intakePersist   string
+	handovers       map[id.ID]cafe.Handover
+	handoverPersist string
+	emailIndex      map[string]id.ID
+	slugIndex       map[string]id.ID
+	employeeIdx     map[string]id.ID
 }
 
 func New() *Store {
@@ -50,6 +62,13 @@ func New() *Store {
 		approvals:   map[id.ID]finance.Approval{},
 		aiSettings:  map[id.ID]assistant.Settings{},
 		aiUsage:     map[string]int{},
+		cafeDefs:    map[id.ID]cafe.Definition{},
+		qrCodes:     map[id.ID]cafe.Code{},
+		qrByToken:   map[string]id.ID{},
+		voices:      map[id.ID]cafe.Voice{},
+		recoveries:  map[id.ID]cafe.Recovery{},
+		intakes:     map[string]cafe.Intake{},
+		handovers:   map[id.ID]cafe.Handover{},
 		emailIndex:  map[string]id.ID{},
 		slugIndex:   map[string]id.ID{},
 		employeeIdx: map[string]id.ID{},
@@ -96,6 +115,20 @@ func (s *Store) GetWorkspaceBySlug(_ context.Context, slug string) (tenancy.Work
 		return tenancy.Workspace{}, errx.NotFound("workspace_not_found", "workspace not found")
 	}
 	return s.workspaces[wid], nil
+}
+
+func (s *Store) UpdateWorkspace(_ context.Context, w tenancy.Workspace) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cur, ok := s.workspaces[w.ID]
+	if !ok {
+		return errx.NotFound("workspace_not_found", "workspace not found")
+	}
+	cur.Name = w.Name
+	cur.Timezone = w.Timezone
+	cur.UpdatedAt = w.UpdatedAt
+	s.workspaces[w.ID] = cur
+	return nil
 }
 
 func (s *Store) CreateUser(_ context.Context, u identity.User) error {

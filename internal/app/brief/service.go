@@ -70,9 +70,14 @@ type HeadlineView struct {
 }
 
 type PulseView struct {
-	OverdueTasks   int `json:"overdueTasks"`
-	OpenTasks      int `json:"openTasks"`
-	CompletedToday int `json:"completedToday"`
+	OverdueTasks   int  `json:"overdueTasks"`
+	OpenTasks      int  `json:"openTasks"`
+	CompletedToday int  `json:"completedToday"`
+	OpenRecoveries int  `json:"openRecoveries"`
+	LateRecoveries int  `json:"lateRecoveries"`
+	OpenBreakdowns int  `json:"openBreakdowns"`
+	HandoverOpen   bool `json:"handoverOpen"`
+	IntakeWritten  bool `json:"intakeWritten"`
 }
 
 type View struct {
@@ -145,9 +150,7 @@ func buildBrief(kind tenancy.Kind, now time.Time, signals []executive.Signal, st
 			continue
 		}
 		sources = append(sources, executive.Source{Kind: sig.Kind, Status: executive.SourceLive})
-		if sig.Pulse != nil {
-			pulse = *sig.Pulse
-		}
+		applyPulse(&pulse, sig)
 		if !sig.RaisesCard() {
 			continue
 		}
@@ -201,7 +204,27 @@ func buildBrief(kind tenancy.Kind, now time.Time, signals []executive.Signal, st
 		Cards:        cards,
 		Sources:      sources,
 		SnoozedCount: snoozed,
-		IsClear:      pulse.OverdueTasks == 0 && pulse.OpenTasks == 0 && len(cards) == 0,
+		IsClear: pulse.OverdueTasks == 0 && pulse.OpenTasks == 0 && !pulse.HandoverOpen &&
+			pulse.OpenRecoveries == 0 && pulse.OpenBreakdowns == 0 && len(cards) == 0,
+	}
+}
+
+func applyPulse(dst *executive.Pulse, sig executive.Signal) {
+	if sig.Pulse == nil {
+		return
+	}
+	p := *sig.Pulse
+	switch sig.Kind {
+	case tenancy.SignalLateStaff:
+		dst.OverdueTasks, dst.OpenTasks, dst.CompletedToday = p.OverdueTasks, p.OpenTasks, p.CompletedToday
+	case tenancy.SignalCustomerVoice:
+		dst.OpenRecoveries, dst.LateRecoveries = p.OpenRecoveries, p.LateRecoveries
+	case tenancy.SignalBreakdown:
+		dst.OpenBreakdowns = p.OpenBreakdowns
+	case tenancy.SignalHandover:
+		dst.HandoverOpen = p.HandoverOpen
+	case tenancy.SignalDailyClose:
+		dst.IntakeWritten = p.IntakeWritten
 	}
 }
 
@@ -258,6 +281,11 @@ func toView(b executive.Brief) View {
 			OverdueTasks:   b.Pulse.OverdueTasks,
 			OpenTasks:      b.Pulse.OpenTasks,
 			CompletedToday: b.Pulse.CompletedToday,
+			OpenRecoveries: b.Pulse.OpenRecoveries,
+			LateRecoveries: b.Pulse.LateRecoveries,
+			OpenBreakdowns: b.Pulse.OpenBreakdowns,
+			HandoverOpen:   b.Pulse.HandoverOpen,
+			IntakeWritten:  b.Pulse.IntakeWritten,
 		},
 		Cards:        cards,
 		Sources:      sources,

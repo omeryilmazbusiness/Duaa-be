@@ -24,10 +24,12 @@ type Config struct {
 	GeminiBaseURL string
 	DatabaseURL   string
 	// DataDir holds local files when Postgres is not configured (sealed AI keys).
-	DataDir     string
-	LogLevel    string
-	LogFormat   string
-	CORSOrigins []string
+	DataDir string
+	// PublicAppURL is the guest-facing origin encoded into printed QR codes.
+	PublicAppURL string
+	LogLevel     string
+	LogFormat    string
+	CORSOrigins  []string
 }
 
 func Load() (Config, error) {
@@ -44,6 +46,7 @@ func Load() (Config, error) {
 		GeminiBaseURL:   getenv("AI_GEMINI_BASE_URL", ""),
 		DatabaseURL:     getenv("DATABASE_URL", ""),
 		DataDir:         getenv("DUA_DATA_DIR", "data"),
+		PublicAppURL:    getenv("PUBLIC_APP_URL", "http://localhost:3000"),
 		LogLevel:        getenv("LOG_LEVEL", "info"),
 		LogFormat:       getenv("LOG_FORMAT", "text"),
 		CORSOrigins:     split(getenv("CORS_ORIGINS", "http://localhost:3000")),

@@ -32,6 +32,11 @@ type Pulse struct {
 	OverdueTasks   int
 	OpenTasks      int
 	CompletedToday int
+	OpenRecoveries int
+	LateRecoveries int
+	OpenBreakdowns int
+	HandoverOpen   bool
+	IntakeWritten  bool
 }
 
 type Source struct {

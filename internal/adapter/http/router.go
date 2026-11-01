@@ -9,6 +9,10 @@ import (
 	appassistant "github.com/dua-os/dua-os-be/internal/app/assistant"
 	appauth "github.com/dua-os/dua-os-be/internal/app/auth"
 	appbrief "github.com/dua-os/dua-os-be/internal/app/brief"
+	appcafedef "github.com/dua-os/dua-os-be/internal/app/cafedef"
+	appcafehandover "github.com/dua-os/dua-os-be/internal/app/cafehandover"
+	appcafeintake "github.com/dua-os/dua-os-be/internal/app/cafeintake"
+	appcafeqr "github.com/dua-os/dua-os-be/internal/app/cafeqr"
 	appcash "github.com/dua-os/dua-os-be/internal/app/cash"
 	appdashboard "github.com/dua-os/dua-os-be/internal/app/dashboard"
 	appdecision "github.com/dua-os/dua-os-be/internal/app/decision"
@@ -34,6 +38,10 @@ type API struct {
 	Approvals *appapproval.Service
 	Dashboard *appdashboard.Service
 	Assistant *appassistant.Service
+	Cafe      *appcafedef.Service
+	QR        *appcafeqr.Service
+	Intake    *appcafeintake.Service
+	Handover  *appcafehandover.Service
 	Actors    *actor.Loader
 	JWT       *authn.JWT
 }
@@ -65,6 +73,10 @@ func NewRouter(cfg config.Config, api API) http.Handler {
 		r.Post("/auth/login", api.login)
 		r.Post("/auth/login/select", api.loginSelect)
 		r.Post("/auth/staff-login", api.staffLogin)
+
+		r.Get("/public/qr/{token}", api.publicQR)
+		r.Get("/public/qr/{token}/image", api.publicQRImage)
+		r.Post("/public/qr/{token}", api.submitPublicQR)
 
 		r.Group(func(r chi.Router) {
 			r.Use(Authenticate(api.JWT))
@@ -109,6 +121,22 @@ func NewRouter(cfg config.Config, api API) http.Handler {
 					r.Delete("/settings", api.deleteAssistantSettings)
 					r.Post("/chat", api.assistantChat)
 				})
+
+				r.Get("/cafe/definition", api.getCafeDefinition)
+				r.Put("/cafe/definition", api.putCafeDefinition)
+				r.Get("/cafe/qr", api.listCafeQR)
+				r.Post("/cafe/qr/tables", api.issueCafeTable)
+				r.Patch("/cafe/qr/{siteID}", api.renameCafeTable)
+				r.Post("/cafe/qr/{siteID}/rotate", api.rotateCafeQR)
+				r.Get("/cafe/voices", api.listCafeVoices)
+				r.Post("/cafe/voices/{id}/act", api.actCafeVoice)
+				r.Get("/cafe/intake", api.getCafeIntake)
+				r.Put("/cafe/intake", api.putCafeIntake)
+				r.Get("/cafe/intakes", api.listCafeIntakes)
+				r.Get("/cafe/handover", api.getCafeHandover)
+				r.Post("/cafe/handover", api.openCafeHandover)
+				r.Post("/cafe/handover/{id}/accept", api.acceptCafeHandover)
+				r.Get("/cafe/handovers", api.listCafeHandovers)
 			})
 		})
 	})

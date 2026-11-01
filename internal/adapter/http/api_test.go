@@ -17,6 +17,10 @@ import (
 	appassistant "github.com/dua-os/dua-os-be/internal/app/assistant"
 	appauth "github.com/dua-os/dua-os-be/internal/app/auth"
 	appbrief "github.com/dua-os/dua-os-be/internal/app/brief"
+	appcafedef "github.com/dua-os/dua-os-be/internal/app/cafedef"
+	appcafehandover "github.com/dua-os/dua-os-be/internal/app/cafehandover"
+	appcafeintake "github.com/dua-os/dua-os-be/internal/app/cafeintake"
+	appcafeqr "github.com/dua-os/dua-os-be/internal/app/cafeqr"
 	appcash "github.com/dua-os/dua-os-be/internal/app/cash"
 	appdashboard "github.com/dua-os/dua-os-be/internal/app/dashboard"
 	appdecision "github.com/dua-os/dua-os-be/internal/app/decision"
@@ -58,7 +62,15 @@ func newHarness(t *testing.T) harness {
 	reg := tenancy.NewRegistry(cafe.Catalog{}, hotel.Catalog{}, supply.Catalog{})
 	passwords := authn.Bcrypt{}
 	tasks := apptask.New(store, store, clk)
-	briefs := appbrief.New(store, clk, appbrief.TaskSignal{Tasks: store, Members: store}, appbrief.CashSignal{Closes: store})
+	cafeQR := appcafeqr.New(store, store, store, harnessAssigner{tasks: tasks}, clk, "http://localhost:3000")
+	briefs := appbrief.New(store, clk,
+		appbrief.HandoverSignal{Store: store},
+		appbrief.TaskSignal{Tasks: store, Members: store},
+		appbrief.VoiceSignal{Source: cafeQR},
+		appbrief.BreakdownSignal{Store: store},
+		appbrief.IntakeSignal{Store: store},
+		appbrief.CashSignal{Closes: store},
+	)
 	reports := appreport.New(store, store, store, harnessAssigner{tasks: tasks}, clk)
 	dash := appdashboard.New(store, store, store, store, store, store, clk)
 	vault, err := secretbox.New("0123456789abcdef0123456789abcdef")
@@ -77,6 +89,10 @@ func newHarness(t *testing.T) harness {
 		Approvals: appapproval.New(store, clk),
 		Dashboard: dash,
 		Assistant: appassistant.New(store, store, vault, fake, assistantctx.New(dash, briefs, tasks, reports), fake, clk),
+		Cafe:      appcafedef.New(store, store, clk),
+		QR:        cafeQR,
+		Intake:    appcafeintake.New(store, store, store, clk),
+		Handover:  appcafehandover.New(store, store, store, store, clk),
 		Actors:    actor.NewLoader(store, reg),
 		JWT:       tokens,
 	}

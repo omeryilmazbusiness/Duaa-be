@@ -41,7 +41,7 @@ type MemberView struct {
 }
 
 func (s *Service) ListPersonnel(ctx context.Context, ac actor.Context) ([]MemberView, error) {
-	if !rbac.Allows(ac.Scope, rbac.ManageStaff) {
+	if !rbac.Allows(ac.Scope, rbac.ManageStaff) && !rbac.Allows(ac.Scope, rbac.ViewReviews) {
 		return nil, errx.Forbidden("forbidden", "staff management requires a manager")
 	}
 	list, err := s.members.ListWorkspaceMemberships(ctx, ac.Workspace.ID)

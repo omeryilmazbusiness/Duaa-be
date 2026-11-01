@@ -66,6 +66,21 @@ func TestOnlyGMUsesAIAssistant(t *testing.T) {
 	}
 }
 
+func TestManagersReadCafeDefinition(t *testing.T) {
+	if !rbac.Allows(staffscope.GeneralManager, rbac.ViewCafe) {
+		t.Fatal("GM reads cafe definition")
+	}
+	if !rbac.Allows(staffscope.DepartmentManager, rbac.ViewCafe) {
+		t.Fatal("department manager reads cafe definition")
+	}
+	if !rbac.Allows(staffscope.FloorOps, rbac.ViewCafe) {
+		t.Fatal("floor reads cafe definition")
+	}
+	if rbac.Allows(staffscope.StaffPersonnel, rbac.ViewCafe) {
+		t.Fatal("employee must not read cafe definition")
+	}
+}
+
 func TestPostLoginSurface(t *testing.T) {
 	if rbac.PostLoginSurface(staffscope.StaffPersonnel, nil) != "staff_portal" {
 		t.Fatal("personnel lands on staff portal")

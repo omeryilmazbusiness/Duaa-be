@@ -20,6 +20,10 @@ import (
 	appassistant "github.com/dua-os/dua-os-be/internal/app/assistant"
 	appauth "github.com/dua-os/dua-os-be/internal/app/auth"
 	appbrief "github.com/dua-os/dua-os-be/internal/app/brief"
+	appcafedef "github.com/dua-os/dua-os-be/internal/app/cafedef"
+	appcafehandover "github.com/dua-os/dua-os-be/internal/app/cafehandover"
+	appcafeintake "github.com/dua-os/dua-os-be/internal/app/cafeintake"
+	appcafeqr "github.com/dua-os/dua-os-be/internal/app/cafeqr"
 	appcash "github.com/dua-os/dua-os-be/internal/app/cash"
 	appdashboard "github.com/dua-os/dua-os-be/internal/app/dashboard"
 	appdecision "github.com/dua-os/dua-os-be/internal/app/decision"
@@ -80,6 +84,18 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		if err := mem.AttachAIPersist(filepath.Join(cfg.DataDir, "assistant-settings.json")); err != nil {
 			return nil, fmt.Errorf("assistant persist: %w", err)
 		}
+		if err := mem.AttachCafePersist(filepath.Join(cfg.DataDir, "cafe-definition.json")); err != nil {
+			return nil, fmt.Errorf("cafe persist: %w", err)
+		}
+		if err := mem.AttachQRPersist(filepath.Join(cfg.DataDir, "cafe-qr.json")); err != nil {
+			return nil, fmt.Errorf("qr persist: %w", err)
+		}
+		if err := mem.AttachIntakePersist(filepath.Join(cfg.DataDir, "cafe-intake.json")); err != nil {
+			return nil, fmt.Errorf("intake persist: %w", err)
+		}
+		if err := mem.AttachHandoverPersist(filepath.Join(cfg.DataDir, "cafe-handover.json")); err != nil {
+			return nil, fmt.Errorf("handover persist: %w", err)
+		}
 	}
 	log.Warn("storage", "driver", "memory", "hint", "set DATABASE_URL for postgres")
 	seed, err := SeedCafe(ctx, mem, clk.Now())
@@ -112,6 +128,13 @@ type kernelStore interface {
 	appapproval.Repository
 	appassistant.SettingsRepo
 	appassistant.UsageRepo
+	appcafedef.Repository
+	appcafedef.WorkspaceWriter
+	appcafeqr.CodeRepo
+	appcafeqr.Inbox
+	appcafeintake.Repository
+	appcafehandover.Repository
+	appcafehandover.OpenWork
 }
 
 type taskAssigner struct{ tasks *apptask.Service }
@@ -135,7 +158,18 @@ func compose(
 ) *http.Server {
 	tasks := apptask.New(store, store, clk)
 	assigner := taskAssigner{tasks: tasks}
-	briefs := appbrief.New(store, clk, appbrief.TaskSignal{Tasks: store, Members: store}, appbrief.CashSignal{Closes: store})
+	cafeDef := appcafedef.New(store, store, clk)
+	cafeQR := appcafeqr.New(store, store, store, assigner, clk, cfg.PublicAppURL)
+	cafeIntake := appcafeintake.New(store, store, store, clk)
+	cafeHandover := appcafehandover.New(store, store, store, store, clk)
+	briefs := appbrief.New(store, clk,
+		appbrief.HandoverSignal{Store: store},
+		appbrief.TaskSignal{Tasks: store, Members: store},
+		appbrief.VoiceSignal{Source: cafeQR},
+		appbrief.BreakdownSignal{Store: store},
+		appbrief.IntakeSignal{Store: store},
+		appbrief.CashSignal{Closes: store},
+	)
 	reports := appreport.New(store, store, store, assigner, clk)
 	dashboard := appdashboard.New(store, store, store, store, store, store, clk)
 	gateway := llm.NewGateway(cfg.OpenAIBaseURL, cfg.GeminiBaseURL)
@@ -156,6 +190,10 @@ func compose(
 			Approvals: appapproval.New(store, clk),
 			Dashboard: dashboard,
 			Assistant: assistant,
+			Cafe:      cafeDef,
+			QR:        cafeQR,
+			Intake:    cafeIntake,
+			Handover:  cafeHandover,
 			Actors:    actor.NewLoader(store, registry),
 			JWT:       tokens,
 		}),

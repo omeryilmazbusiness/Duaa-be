@@ -14,6 +14,9 @@ const (
 	SignalCustomerVoice SignalKind = "customer_voice"
 	SignalReservations  SignalKind = "reservations"
 	SignalCashVariance  SignalKind = "cash_variance"
+	SignalHandover      SignalKind = "handover"
+	SignalBreakdown     SignalKind = "breakdown"
+	SignalDailyClose    SignalKind = "daily_close"
 )
 
 // DashboardModule is a GM pulse tile. Catalogs opt in; missing adapters stay unavailable.
