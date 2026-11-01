@@ -29,6 +29,7 @@ type Store struct {
 	reports         map[id.ID]opsreport.Report
 	closes          map[string]finance.Close
 	approvals       map[id.ID]finance.Approval
+	approvalPersist string
 	aiSettings      map[id.ID]assistant.Settings
 	aiUsage         map[string]int
 	aiPersist       string
@@ -43,6 +44,9 @@ type Store struct {
 	intakePersist   string
 	handovers       map[id.ID]cafe.Handover
 	handoverPersist string
+	checkTemplates  map[id.ID]cafe.ChecklistTemplate
+	checkRuns       map[string]cafe.ChecklistRun
+	checkPersist    string
 	emailIndex      map[string]id.ID
 	slugIndex       map[string]id.ID
 	employeeIdx     map[string]id.ID
@@ -50,28 +54,30 @@ type Store struct {
 
 func New() *Store {
 	return &Store{
-		orgs:        map[id.ID]tenancy.Organization{},
-		workspaces:  map[id.ID]tenancy.Workspace{},
-		users:       map[id.ID]identity.User{},
-		memberships: map[id.ID]identity.Membership{},
-		tasks:       map[id.ID]work.Task{},
-		routines:    map[id.ID]work.Routine{},
-		decisions:   map[id.ID]executive.Decision{},
-		reports:     map[id.ID]opsreport.Report{},
-		closes:      map[string]finance.Close{},
-		approvals:   map[id.ID]finance.Approval{},
-		aiSettings:  map[id.ID]assistant.Settings{},
-		aiUsage:     map[string]int{},
-		cafeDefs:    map[id.ID]cafe.Definition{},
-		qrCodes:     map[id.ID]cafe.Code{},
-		qrByToken:   map[string]id.ID{},
-		voices:      map[id.ID]cafe.Voice{},
-		recoveries:  map[id.ID]cafe.Recovery{},
-		intakes:     map[string]cafe.Intake{},
-		handovers:   map[id.ID]cafe.Handover{},
-		emailIndex:  map[string]id.ID{},
-		slugIndex:   map[string]id.ID{},
-		employeeIdx: map[string]id.ID{},
+		orgs:           map[id.ID]tenancy.Organization{},
+		workspaces:     map[id.ID]tenancy.Workspace{},
+		users:          map[id.ID]identity.User{},
+		memberships:    map[id.ID]identity.Membership{},
+		tasks:          map[id.ID]work.Task{},
+		routines:       map[id.ID]work.Routine{},
+		decisions:      map[id.ID]executive.Decision{},
+		reports:        map[id.ID]opsreport.Report{},
+		closes:         map[string]finance.Close{},
+		approvals:      map[id.ID]finance.Approval{},
+		aiSettings:     map[id.ID]assistant.Settings{},
+		aiUsage:        map[string]int{},
+		cafeDefs:       map[id.ID]cafe.Definition{},
+		qrCodes:        map[id.ID]cafe.Code{},
+		qrByToken:      map[string]id.ID{},
+		voices:         map[id.ID]cafe.Voice{},
+		recoveries:     map[id.ID]cafe.Recovery{},
+		intakes:        map[string]cafe.Intake{},
+		handovers:      map[id.ID]cafe.Handover{},
+		checkTemplates: map[id.ID]cafe.ChecklistTemplate{},
+		checkRuns:      map[string]cafe.ChecklistRun{},
+		emailIndex:     map[string]id.ID{},
+		slugIndex:      map[string]id.ID{},
+		employeeIdx:    map[string]id.ID{},
 	}
 }
 

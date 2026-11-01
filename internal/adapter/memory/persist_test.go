@@ -8,6 +8,7 @@ import (
 	"github.com/dua-os/dua-os-be/internal/adapter/memory"
 	"github.com/dua-os/dua-os-be/internal/domain/assistant"
 	"github.com/dua-os/dua-os-be/internal/domain/cafe"
+	"github.com/dua-os/dua-os-be/internal/domain/finance"
 	"github.com/dua-os/dua-os-be/internal/shared/id"
 )
 
@@ -158,6 +159,71 @@ func TestHandoverSurvivesReload(t *testing.T) {
 	}
 	got, err := b.GetOpenHandover(t.Context(), wid)
 	if err != nil || got.Note != "keys on bar" || !got.Open() {
+		t.Fatalf("reload=%+v err=%v", got, err)
+	}
+}
+
+func TestChecklistSurvivesReload(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cafe-checklist.json")
+	wid := id.MustParse("22222222-2222-4222-8222-222222222222")
+	now := time.Date(2026, 11, 2, 8, 0, 0, 0, time.UTC)
+	a := memory.New()
+	if err := a.AttachCheckPersist(path); err != nil {
+		t.Fatal(err)
+	}
+	tpl, err := cafe.ReplaceTemplate(wid, id.New(), []cafe.CheckItem{
+		{Kind: cafe.CheckOpen, Title: "chairs down", Active: true},
+	}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SaveChecklistTemplate(t.Context(), tpl); err != nil {
+		t.Fatal(err)
+	}
+	run, err := cafe.ToggleRun(nil, wid, id.New(), "2026-11-02", tpl.Items[0], now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SaveChecklistRun(t.Context(), run); err != nil {
+		t.Fatal(err)
+	}
+	b := memory.New()
+	if err := b.AttachCheckPersist(path); err != nil {
+		t.Fatal(err)
+	}
+	got, err := b.GetChecklistTemplate(t.Context(), wid)
+	if err != nil || len(got.Items) != 1 || got.Items[0].Title != "chairs down" {
+		t.Fatalf("template=%+v err=%v", got, err)
+	}
+	live, err := b.GetChecklistRun(t.Context(), wid, "2026-11-02", cafe.CheckOpen)
+	if err != nil || !live.Marked(got.Items[0].ID) {
+		t.Fatalf("run=%+v err=%v", live, err)
+	}
+}
+
+func TestApprovalsSurviveReload(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "spend-approvals.json")
+	wid := id.MustParse("22222222-2222-4222-8222-222222222222")
+	now := time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC)
+	a := memory.New()
+	if err := a.AttachApprovalPersist(path); err != nil {
+		t.Fatal(err)
+	}
+	pack, err := finance.NewApproval(wid, id.New(), "Milk invoice", "Al-Nahrain", "IQD", "photo", 250000, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.CreateApproval(t.Context(), pack); err != nil {
+		t.Fatal(err)
+	}
+	b := memory.New()
+	if err := b.AttachApprovalPersist(path); err != nil {
+		t.Fatal(err)
+	}
+	got, err := b.GetApproval(t.Context(), pack.ID)
+	if err != nil || got.Title != "Milk invoice" || got.Version != 1 || got.Evidence != "photo" {
 		t.Fatalf("reload=%+v err=%v", got, err)
 	}
 }

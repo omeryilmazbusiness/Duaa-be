@@ -9,6 +9,7 @@ import (
 	appassistant "github.com/dua-os/dua-os-be/internal/app/assistant"
 	appauth "github.com/dua-os/dua-os-be/internal/app/auth"
 	appbrief "github.com/dua-os/dua-os-be/internal/app/brief"
+	appcafecheck "github.com/dua-os/dua-os-be/internal/app/cafecheck"
 	appcafedef "github.com/dua-os/dua-os-be/internal/app/cafedef"
 	appcafehandover "github.com/dua-os/dua-os-be/internal/app/cafehandover"
 	appcafeintake "github.com/dua-os/dua-os-be/internal/app/cafeintake"
@@ -42,6 +43,7 @@ type API struct {
 	QR        *appcafeqr.Service
 	Intake    *appcafeintake.Service
 	Handover  *appcafehandover.Service
+	Check     *appcafecheck.Service
 	Actors    *actor.Loader
 	JWT       *authn.JWT
 }
@@ -112,6 +114,7 @@ func NewRouter(cfg config.Config, api API) http.Handler {
 				r.Get("/approvals", api.listApprovals)
 				r.Post("/approvals", api.createApproval)
 				r.Post("/approvals/{id}/act", api.actApproval)
+				r.Post("/approvals/{id}/evidence", api.attachApprovalEvidence)
 
 				r.Route("/assistant", func(r chi.Router) {
 					r.Get("/status", api.assistantStatus)
@@ -137,6 +140,9 @@ func NewRouter(cfg config.Config, api API) http.Handler {
 				r.Post("/cafe/handover", api.openCafeHandover)
 				r.Post("/cafe/handover/{id}/accept", api.acceptCafeHandover)
 				r.Get("/cafe/handovers", api.listCafeHandovers)
+				r.Get("/cafe/checklist", api.getCafeChecklist)
+				r.Put("/cafe/checklist", api.putCafeChecklist)
+				r.Post("/cafe/checklist/toggle", api.toggleCafeChecklist)
 			})
 		})
 	})

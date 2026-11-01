@@ -32,6 +32,7 @@ type View struct {
 	Amount    int64  `json:"amount"`
 	Currency  string `json:"currency"`
 	Evidence  string `json:"evidence,omitempty"`
+	Version   int    `json:"version"`
 	Status    string `json:"status"`
 	CreatedAt string `json:"createdAt"`
 	UpdatedAt string `json:"updatedAt"`
@@ -45,6 +46,7 @@ func toView(a finance.Approval) View {
 		Amount:    a.Amount,
 		Currency:  a.Currency,
 		Evidence:  a.Evidence,
+		Version:   a.Version,
 		Status:    a.Status,
 		CreatedAt: a.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt: a.UpdatedAt.UTC().Format(time.RFC3339),
@@ -61,6 +63,9 @@ func (s *Service) Submit(ctx context.Context, ac actor.Context, title, supplier,
 	}
 	a, err := finance.NewApproval(ac.Workspace.ID, uid, title, supplier, finance.CurrencyIQD, evidence, amount, s.clock.Now())
 	if err != nil {
+		return View{}, err
+	}
+	if err := s.rejectDuplicate(ctx, ac.Workspace.ID, a); err != nil {
 		return View{}, err
 	}
 	if err := s.store.CreateApproval(ctx, a); err != nil {
@@ -88,20 +93,30 @@ func (s *Service) List(ctx context.Context, ac actor.Context) ([]View, error) {
 	return out, nil
 }
 
+func (s *Service) AttachEvidence(ctx context.Context, ac actor.Context, approvalID, evidence string) (View, error) {
+	if !rbac.Allows(ac.Scope, rbac.SubmitApproval) {
+		return View{}, errx.Forbidden("forbidden", "managers attach spend-pack evidence")
+	}
+	a, err := s.load(ctx, ac, approvalID)
+	if err != nil {
+		return View{}, err
+	}
+	if err := a.AttachEvidence(evidence, s.clock.Now()); err != nil {
+		return View{}, err
+	}
+	if err := s.store.UpdateApproval(ctx, a); err != nil {
+		return View{}, err
+	}
+	return toView(a), nil
+}
+
 func (s *Service) Act(ctx context.Context, ac actor.Context, approvalID, action string, amount *int64) (View, error) {
 	if !rbac.Allows(ac.Scope, rbac.ActApproval) {
 		return View{}, errx.Forbidden("forbidden", "only the general manager acts on spend packs")
 	}
-	aid, err := id.Parse(approvalID)
-	if err != nil {
-		return View{}, errx.Invalid("invalid_id", "invalid approval id")
-	}
-	a, err := s.store.GetApproval(ctx, aid)
+	a, err := s.load(ctx, ac, approvalID)
 	if err != nil {
 		return View{}, err
-	}
-	if a.WorkspaceID != ac.Workspace.ID {
-		return View{}, errx.NotFound("not_found", "approval not found")
 	}
 	now := s.clock.Now()
 	if amount != nil {
@@ -114,8 +129,39 @@ func (s *Service) Act(ctx context.Context, ac actor.Context, approvalID, action 
 			return View{}, err
 		}
 	}
+	if a.Pending() {
+		if err := s.rejectDuplicate(ctx, ac.Workspace.ID, a); err != nil {
+			return View{}, err
+		}
+	}
 	if err := s.store.UpdateApproval(ctx, a); err != nil {
 		return View{}, err
 	}
 	return toView(a), nil
+}
+
+func (s *Service) load(ctx context.Context, ac actor.Context, approvalID string) (finance.Approval, error) {
+	aid, err := id.Parse(approvalID)
+	if err != nil {
+		return finance.Approval{}, errx.Invalid("invalid_id", "invalid approval id")
+	}
+	a, err := s.store.GetApproval(ctx, aid)
+	if err != nil {
+		return finance.Approval{}, err
+	}
+	if a.WorkspaceID != ac.Workspace.ID {
+		return finance.Approval{}, errx.NotFound("not_found", "approval not found")
+	}
+	return a, nil
+}
+
+func (s *Service) rejectDuplicate(ctx context.Context, workspaceID id.ID, candidate finance.Approval) error {
+	existing, err := s.store.ListApprovals(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	if finance.PendingDuplicate(existing, candidate) {
+		return finance.DuplicateConflict()
+	}
+	return nil
 }

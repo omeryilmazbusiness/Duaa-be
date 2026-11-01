@@ -17,6 +17,7 @@ const (
 	SignalHandover      SignalKind = "handover"
 	SignalBreakdown     SignalKind = "breakdown"
 	SignalDailyClose    SignalKind = "daily_close"
+	SignalChecklist     SignalKind = "checklist"
 )
 
 // DashboardModule is a GM pulse tile. Catalogs opt in; missing adapters stay unavailable.

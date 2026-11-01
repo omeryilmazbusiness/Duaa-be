@@ -44,21 +44,25 @@ func scanClose(row pgx.Row) (finance.Close, error) {
 	return c, err
 }
 
-const approvalSelect = `SELECT id, workspace_id, created_by_user_id, title, supplier, amount, currency, evidence, status, created_at, updated_at FROM spend_approvals`
+const approvalSelect = `SELECT id, workspace_id, created_by_user_id, title, supplier, amount, currency, evidence, fingerprint, version, status, created_at, updated_at FROM spend_approvals`
 
 func scanApproval(row pgx.Row) (finance.Approval, error) {
 	var a finance.Approval
 	err := row.Scan(
-		&a.ID, &a.WorkspaceID, &a.CreatedByUserID, &a.Title, &a.Supplier, &a.Amount, &a.Currency, &a.Evidence, &a.Status, &a.CreatedAt, &a.UpdatedAt,
+		&a.ID, &a.WorkspaceID, &a.CreatedByUserID, &a.Title, &a.Supplier, &a.Amount, &a.Currency, &a.Evidence,
+		&a.Fingerprint, &a.Version, &a.Status, &a.CreatedAt, &a.UpdatedAt,
 	)
 	return a, err
 }
 
 func (s *Store) CreateApproval(ctx context.Context, a finance.Approval) error {
 	_, err := s.pool.Exec(ctx, `INSERT INTO spend_approvals (
-		id, workspace_id, created_by_user_id, title, supplier, amount, currency, evidence, status, created_at, updated_at
-	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-		a.ID, a.WorkspaceID, a.CreatedByUserID, a.Title, a.Supplier, a.Amount, a.Currency, a.Evidence, a.Status, a.CreatedAt, a.UpdatedAt)
+		id, workspace_id, created_by_user_id, title, supplier, amount, currency, evidence, fingerprint, version, status, created_at, updated_at
+	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+		a.ID, a.WorkspaceID, a.CreatedByUserID, a.Title, a.Supplier, a.Amount, a.Currency, a.Evidence, a.Fingerprint, a.Version, a.Status, a.CreatedAt, a.UpdatedAt)
+	if isUnique(err) {
+		return finance.DuplicateConflict()
+	}
 	return err
 }
 
@@ -88,8 +92,11 @@ func (s *Store) ListApprovals(ctx context.Context, workspaceID id.ID) ([]finance
 }
 
 func (s *Store) UpdateApproval(ctx context.Context, a finance.Approval) error {
-	_, err := s.pool.Exec(ctx, `UPDATE spend_approvals SET title=$2, supplier=$3, amount=$4, currency=$5, evidence=$6, status=$7, updated_at=$8
-		WHERE id=$1 AND workspace_id=$9`,
-		a.ID, a.Title, a.Supplier, a.Amount, a.Currency, a.Evidence, a.Status, a.UpdatedAt, a.WorkspaceID)
+	_, err := s.pool.Exec(ctx, `UPDATE spend_approvals SET title=$2, supplier=$3, amount=$4, currency=$5, evidence=$6, fingerprint=$7, version=$8, status=$9, updated_at=$10
+		WHERE id=$1 AND workspace_id=$11`,
+		a.ID, a.Title, a.Supplier, a.Amount, a.Currency, a.Evidence, a.Fingerprint, a.Version, a.Status, a.UpdatedAt, a.WorkspaceID)
+	if isUnique(err) {
+		return finance.DuplicateConflict()
+	}
 	return err
 }

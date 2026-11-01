@@ -78,6 +78,10 @@ type PulseView struct {
 	OpenBreakdowns int  `json:"openBreakdowns"`
 	HandoverOpen   bool `json:"handoverOpen"`
 	IntakeWritten  bool `json:"intakeWritten"`
+	OpenChecks     int  `json:"openChecks"`
+	OpenDone       int  `json:"openDone"`
+	CloseChecks    int  `json:"closeChecks"`
+	CloseDone      int  `json:"closeDone"`
 }
 
 type View struct {
@@ -225,6 +229,8 @@ func applyPulse(dst *executive.Pulse, sig executive.Signal) {
 		dst.HandoverOpen = p.HandoverOpen
 	case tenancy.SignalDailyClose:
 		dst.IntakeWritten = p.IntakeWritten
+	case tenancy.SignalChecklist:
+		dst.OpenChecks, dst.OpenDone, dst.CloseChecks, dst.CloseDone = p.OpenChecks, p.OpenDone, p.CloseChecks, p.CloseDone
 	}
 }
 
@@ -286,6 +292,10 @@ func toView(b executive.Brief) View {
 			OpenBreakdowns: b.Pulse.OpenBreakdowns,
 			HandoverOpen:   b.Pulse.HandoverOpen,
 			IntakeWritten:  b.Pulse.IntakeWritten,
+			OpenChecks:     b.Pulse.OpenChecks,
+			OpenDone:       b.Pulse.OpenDone,
+			CloseChecks:    b.Pulse.CloseChecks,
+			CloseDone:      b.Pulse.CloseDone,
 		},
 		Cards:        cards,
 		Sources:      sources,

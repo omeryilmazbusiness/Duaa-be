@@ -17,6 +17,7 @@ import (
 	appassistant "github.com/dua-os/dua-os-be/internal/app/assistant"
 	appauth "github.com/dua-os/dua-os-be/internal/app/auth"
 	appbrief "github.com/dua-os/dua-os-be/internal/app/brief"
+	appcafecheck "github.com/dua-os/dua-os-be/internal/app/cafecheck"
 	appcafedef "github.com/dua-os/dua-os-be/internal/app/cafedef"
 	appcafehandover "github.com/dua-os/dua-os-be/internal/app/cafehandover"
 	appcafeintake "github.com/dua-os/dua-os-be/internal/app/cafeintake"
@@ -69,6 +70,7 @@ func newHarness(t *testing.T) harness {
 		appbrief.VoiceSignal{Source: cafeQR},
 		appbrief.BreakdownSignal{Store: store},
 		appbrief.IntakeSignal{Store: store},
+		appbrief.ChecklistSignal{Store: store},
 		appbrief.CashSignal{Closes: store},
 	)
 	reports := appreport.New(store, store, store, harnessAssigner{tasks: tasks}, clk)
@@ -93,6 +95,7 @@ func newHarness(t *testing.T) harness {
 		QR:        cafeQR,
 		Intake:    appcafeintake.New(store, store, store, clk),
 		Handover:  appcafehandover.New(store, store, store, store, clk),
+		Check:     appcafecheck.New(store, store, store, clk),
 		Actors:    actor.NewLoader(store, reg),
 		JWT:       tokens,
 	}
@@ -706,8 +709,8 @@ func TestGMDashboardCashAndApprovals(t *testing.T) {
 	}
 	var after map[string]any
 	decode(t, revised, &after)
-	if after["status"] != "open" || after["amount"] != float64(260000) {
-		t.Fatalf("amount change must drop approval: %v", after)
+	if after["status"] != "open" || after["amount"] != float64(260000) || after["version"] != float64(2) {
+		t.Fatalf("amount change must drop approval and bump version: %v", after)
 	}
 
 	live := get(h.handler, "/v1/workspaces/"+cafeID+"/executive/dashboard", gm.Token)
@@ -719,5 +722,111 @@ func TestGMDashboardCashAndApprovals(t *testing.T) {
 	}
 	if pulse, _ := liveView["pulse"].(map[string]any); pulse["employees"] != float64(1) {
 		t.Fatalf("pulse=%v", liveView["pulse"])
+	}
+}
+
+func TestSpendPackStage2EvidenceVersionNoDuplicate(t *testing.T) {
+	h := newHarness(t)
+	cafeID := h.seed.CafeID.String()
+	login := post(h.handler, "/v1/auth/login", map[string]string{
+		"email": h.seed.GMEmail, "password": h.seed.GMPassword,
+	}, "")
+	var gm wrapLogin
+	decode(t, login, &gm)
+
+	createdEmp := post(h.handler, "/v1/workspaces/"+cafeID+"/staff", map[string]string{
+		"firstName": "Zain", "lastName": "Floor", "staffDepartment": "BAR", "employeeNumber": "1088",
+	}, gm.Token)
+	if createdEmp.Code != 201 {
+		t.Fatalf("employee %d %s", createdEmp.Code, createdEmp.Body.String())
+	}
+	empLogin := post(h.handler, "/v1/auth/staff-login", map[string]string{
+		"workspaceSlug": "duaa-cafe", "employeeNumber": "1088",
+	}, "")
+	var emp wrapLogin
+	decode(t, empLogin, &emp)
+	if code := post(h.handler, "/v1/workspaces/"+cafeID+"/approvals", map[string]any{
+		"title": "Milk invoice", "supplier": "Al-Nahrain", "amount": 250000,
+	}, emp.Token).Code; code != 403 {
+		t.Fatalf("staff must not submit spend packs, got %d", code)
+	}
+
+	bare := post(h.handler, "/v1/workspaces/"+cafeID+"/approvals", map[string]any{
+		"title": "Milk invoice", "supplier": "Al-Nahrain", "amount": 250000,
+	}, gm.Token)
+	if bare.Code != 201 {
+		t.Fatalf("submit %d %s", bare.Code, bare.Body.String())
+	}
+	var created map[string]any
+	decode(t, bare, &created)
+	id, _ := created["id"].(string)
+	if created["version"] != float64(1) || created["status"] != "open" {
+		t.Fatalf("new pack=%v", created)
+	}
+
+	dup := post(h.handler, "/v1/workspaces/"+cafeID+"/approvals", map[string]any{
+		"title": "  milk   invoice ", "supplier": "al-nahrain", "amount": 250000, "evidence": "later",
+	}, gm.Token)
+	if dup.Code != 409 {
+		t.Fatalf("duplicate must be 409, got %d %s", dup.Code, dup.Body.String())
+	}
+
+	if post(h.handler, "/v1/workspaces/"+cafeID+"/approvals/"+id+"/act", map[string]any{
+		"action": "approve",
+	}, gm.Token).Code != 422 {
+		t.Fatal("approve without evidence must fail")
+	}
+
+	asked := post(h.handler, "/v1/workspaces/"+cafeID+"/approvals/"+id+"/act", map[string]any{
+		"action": "request_evidence",
+	}, gm.Token)
+	if asked.Code != 200 {
+		t.Fatalf("request evidence %d %s", asked.Code, asked.Body.String())
+	}
+	if post(h.handler, "/v1/workspaces/"+cafeID+"/approvals/"+id+"/act", map[string]any{
+		"action": "approve",
+	}, gm.Token).Code != 422 {
+		t.Fatal("approve while waiting for evidence must fail")
+	}
+	if post(h.handler, "/v1/workspaces/"+cafeID+"/approvals/"+id+"/evidence", map[string]any{
+		"evidence": "photo-ref",
+	}, emp.Token).Code != 403 {
+		t.Fatal("staff must not attach evidence")
+	}
+
+	ready := post(h.handler, "/v1/workspaces/"+cafeID+"/approvals/"+id+"/evidence", map[string]any{
+		"evidence": "photo-ref",
+	}, gm.Token)
+	if ready.Code != 200 {
+		t.Fatalf("attach %d %s", ready.Code, ready.Body.String())
+	}
+	var attached map[string]any
+	decode(t, ready, &attached)
+	if attached["status"] != "open" || attached["version"] != float64(2) || attached["evidence"] != "photo-ref" {
+		t.Fatalf("attached=%v", attached)
+	}
+
+	approved := post(h.handler, "/v1/workspaces/"+cafeID+"/approvals/"+id+"/act", map[string]any{
+		"action": "approve",
+	}, gm.Token)
+	if approved.Code != 200 {
+		t.Fatalf("approve %d %s", approved.Code, approved.Body.String())
+	}
+	var done map[string]any
+	decode(t, approved, &done)
+	if done["status"] != "approved" || done["amount"] != float64(250000) || done["version"] != float64(2) {
+		t.Fatalf("approve must not pay or change amount: %v", done)
+	}
+	if post(h.handler, "/v1/workspaces/"+cafeID+"/approvals/"+id+"/act", map[string]any{
+		"action": "reject",
+	}, gm.Token).Code != 422 {
+		t.Fatal("closed pack must not take another decision")
+	}
+
+	dash := get(h.handler, "/v1/workspaces/"+cafeID+"/executive/dashboard", gm.Token)
+	var view map[string]any
+	decode(t, dash, &view)
+	if packs, _ := view["approvals"].([]any); len(packs) != 0 {
+		t.Fatalf("approved pack must leave the pending inbox: %v", packs)
 	}
 }

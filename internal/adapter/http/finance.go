@@ -98,3 +98,23 @@ func (a API) actApproval(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.WriteJSON(w, http.StatusOK, view)
 }
+
+func (a API) attachApprovalEvidence(w http.ResponseWriter, r *http.Request) {
+	ac, ok := a.actor(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Evidence string `json:"evidence"`
+	}
+	if err := httpx.DecodeJSON(r, &body); err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	view, err := a.Approvals.AttachEvidence(r.Context(), ac, chi.URLParam(r, "id"), body.Evidence)
+	if err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, view)
+}

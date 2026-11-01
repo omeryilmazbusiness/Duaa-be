@@ -104,7 +104,8 @@ func Format(in Input) string {
 			fmt.Fprintf(&b, ", variance=%d\n", c.Variance)
 		}
 		for _, a := range d.Approvals {
-			fmt.Fprintf(&b, "Spend pack: %q supplier=%q amount=%d %s status=%s\n", line(a.Title), line(a.Supplier), a.Amount, line(a.Currency), line(a.Status))
+			fmt.Fprintf(&b, "Spend pack: %q supplier=%q amount=%d %s status=%s version=%d evidence=%t (approve does not pay)\n",
+				line(a.Title), line(a.Supplier), a.Amount, line(a.Currency), line(a.Status), a.Version, a.Evidence != "")
 		}
 		for _, w := range d.Workload {
 			names[w.UserID] = w.Name

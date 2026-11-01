@@ -80,6 +80,8 @@ type ApprovalView struct {
 	Supplier string `json:"supplier"`
 	Amount   int64  `json:"amount"`
 	Currency string `json:"currency"`
+	Evidence string `json:"evidence,omitempty"`
+	Version  int    `json:"version"`
 	Status   string `json:"status"`
 }
 
@@ -161,7 +163,8 @@ func (s *Service) ForGM(ctx context.Context, ac actor.Context) (View, error) {
 			pending++
 			packViews = append(packViews, ApprovalView{
 				ID: a.ID.String(), Title: a.Title, Supplier: a.Supplier,
-				Amount: a.Amount, Currency: a.Currency, Status: a.Status,
+				Amount: a.Amount, Currency: a.Currency, Evidence: a.Evidence,
+				Version: a.Version, Status: a.Status,
 			})
 		}
 	}

@@ -142,10 +142,11 @@ func TestCafeFloorPulseMergesWithoutInventingWork(t *testing.T) {
 		{Kind: tenancy.SignalHandover, SourceKey: "handover", Fingerprint: "open=1", Available: true, Count: 1, Priority: 5, TitleKey: "brief.handover", TargetTab: tenancy.TabFeedback, Pulse: &executive.Pulse{HandoverOpen: true}},
 		{Kind: tenancy.SignalBreakdown, SourceKey: "breakdown", Fingerprint: "open=2", Available: true, Count: 2, Priority: 14, TitleKey: "brief.breakdowns", TargetTab: tenancy.TabFeedback, Pulse: &executive.Pulse{OpenBreakdowns: 2}},
 		{Kind: tenancy.SignalDailyClose, SourceKey: "daily_close", Fingerprint: "written=0", Available: true, Count: 0, Pulse: &executive.Pulse{IntakeWritten: false}},
+		{Kind: tenancy.SignalChecklist, SourceKey: "checklist", Fingerprint: "open=1/2,close=0/1", Available: true, Count: 0, Pulse: &executive.Pulse{OpenChecks: 2, OpenDone: 1, CloseChecks: 1, CloseDone: 0}},
 		{Kind: tenancy.SignalCustomerVoice, SourceKey: "customer_voice", Fingerprint: "open=0,late=0", Available: true, Count: 0, Pulse: &executive.Pulse{}},
 	}
 	brief := buildBrief(tenancy.KindCafe, now, signals, nil)
-	if brief.Pulse.OpenTasks != 3 || !brief.Pulse.HandoverOpen || brief.Pulse.OpenBreakdowns != 2 || brief.Pulse.IntakeWritten || brief.Pulse.OpenRecoveries != 0 {
+	if brief.Pulse.OpenTasks != 3 || !brief.Pulse.HandoverOpen || brief.Pulse.OpenBreakdowns != 2 || brief.Pulse.IntakeWritten || brief.Pulse.OpenRecoveries != 0 || brief.Pulse.OpenChecks != 2 || brief.Pulse.CloseDone != 0 {
 		t.Fatalf("merged pulse=%+v", brief.Pulse)
 	}
 	if len(brief.Cards) != 3 {
@@ -162,6 +163,7 @@ func TestEmptyHandoverAndCloseDoNotRaiseCards(t *testing.T) {
 		{Kind: tenancy.SignalHandover, Available: true, Count: 0, Pulse: &executive.Pulse{HandoverOpen: false}},
 		{Kind: tenancy.SignalDailyClose, Available: true, Count: 0, Pulse: &executive.Pulse{IntakeWritten: false}},
 		{Kind: tenancy.SignalBreakdown, Available: true, Count: 0, Pulse: &executive.Pulse{}},
+		{Kind: tenancy.SignalChecklist, Available: true, Count: 0, Pulse: &executive.Pulse{OpenChecks: 2, OpenDone: 0}},
 	}
 	brief := buildBrief(tenancy.KindCafe, now, signals, nil)
 	if len(brief.Cards) != 0 || !brief.IsClear {

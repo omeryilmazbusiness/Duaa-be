@@ -37,6 +37,10 @@ type Pulse struct {
 	OpenBreakdowns int
 	HandoverOpen   bool
 	IntakeWritten  bool
+	OpenChecks     int
+	OpenDone       int
+	CloseChecks    int
+	CloseDone      int
 }
 
 type Source struct {

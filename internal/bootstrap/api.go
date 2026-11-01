@@ -20,6 +20,7 @@ import (
 	appassistant "github.com/dua-os/dua-os-be/internal/app/assistant"
 	appauth "github.com/dua-os/dua-os-be/internal/app/auth"
 	appbrief "github.com/dua-os/dua-os-be/internal/app/brief"
+	appcafecheck "github.com/dua-os/dua-os-be/internal/app/cafecheck"
 	appcafedef "github.com/dua-os/dua-os-be/internal/app/cafedef"
 	appcafehandover "github.com/dua-os/dua-os-be/internal/app/cafehandover"
 	appcafeintake "github.com/dua-os/dua-os-be/internal/app/cafeintake"
@@ -96,6 +97,12 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		if err := mem.AttachHandoverPersist(filepath.Join(cfg.DataDir, "cafe-handover.json")); err != nil {
 			return nil, fmt.Errorf("handover persist: %w", err)
 		}
+		if err := mem.AttachCheckPersist(filepath.Join(cfg.DataDir, "cafe-checklist.json")); err != nil {
+			return nil, fmt.Errorf("checklist persist: %w", err)
+		}
+		if err := mem.AttachApprovalPersist(filepath.Join(cfg.DataDir, "spend-approvals.json")); err != nil {
+			return nil, fmt.Errorf("approval persist: %w", err)
+		}
 	}
 	log.Warn("storage", "driver", "memory", "hint", "set DATABASE_URL for postgres")
 	seed, err := SeedCafe(ctx, mem, clk.Now())
@@ -135,6 +142,7 @@ type kernelStore interface {
 	appcafeintake.Repository
 	appcafehandover.Repository
 	appcafehandover.OpenWork
+	appcafecheck.Repository
 }
 
 type taskAssigner struct{ tasks *apptask.Service }
@@ -162,12 +170,14 @@ func compose(
 	cafeQR := appcafeqr.New(store, store, store, assigner, clk, cfg.PublicAppURL)
 	cafeIntake := appcafeintake.New(store, store, store, clk)
 	cafeHandover := appcafehandover.New(store, store, store, store, clk)
+	cafeCheck := appcafecheck.New(store, store, store, clk)
 	briefs := appbrief.New(store, clk,
 		appbrief.HandoverSignal{Store: store},
 		appbrief.TaskSignal{Tasks: store, Members: store},
 		appbrief.VoiceSignal{Source: cafeQR},
 		appbrief.BreakdownSignal{Store: store},
 		appbrief.IntakeSignal{Store: store},
+		appbrief.ChecklistSignal{Store: store},
 		appbrief.CashSignal{Closes: store},
 	)
 	reports := appreport.New(store, store, store, assigner, clk)
@@ -194,6 +204,7 @@ func compose(
 			QR:        cafeQR,
 			Intake:    cafeIntake,
 			Handover:  cafeHandover,
+			Check:     cafeCheck,
 			Actors:    actor.NewLoader(store, registry),
 			JWT:       tokens,
 		}),
