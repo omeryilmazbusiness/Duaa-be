@@ -66,6 +66,15 @@ func TestOnlyGMUsesAIAssistant(t *testing.T) {
 	}
 }
 
+func TestFloorRecordsPrepTimes(t *testing.T) {
+	if !rbac.Allows(staffscope.GeneralManager, rbac.RecordPrep) || !rbac.Allows(staffscope.DepartmentManager, rbac.RecordPrep) || !rbac.Allows(staffscope.FloorOps, rbac.RecordPrep) {
+		t.Fatal("managers record kitchen wait")
+	}
+	if rbac.Allows(staffscope.StaffPersonnel, rbac.RecordPrep) {
+		t.Fatal("employee must not record prep times")
+	}
+}
+
 func TestManagersReadCafeDefinition(t *testing.T) {
 	if !rbac.Allows(staffscope.GeneralManager, rbac.ViewCafe) {
 		t.Fatal("GM reads cafe definition")

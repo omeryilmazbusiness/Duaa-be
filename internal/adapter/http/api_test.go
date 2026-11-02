@@ -22,6 +22,7 @@ import (
 	appcafehandover "github.com/dua-os/dua-os-be/internal/app/cafehandover"
 	appcafeintake "github.com/dua-os/dua-os-be/internal/app/cafeintake"
 	appcafepos "github.com/dua-os/dua-os-be/internal/app/cafepos"
+	appcafeprep "github.com/dua-os/dua-os-be/internal/app/cafeprep"
 	appcafeqr "github.com/dua-os/dua-os-be/internal/app/cafeqr"
 	appcash "github.com/dua-os/dua-os-be/internal/app/cash"
 	appdashboard "github.com/dua-os/dua-os-be/internal/app/dashboard"
@@ -72,6 +73,7 @@ func newHarness(t *testing.T) harness {
 		appbrief.BreakdownSignal{Store: store},
 		appbrief.IntakeSignal{Store: store},
 		appbrief.ChecklistSignal{Store: store},
+		appbrief.PrepSignal{Store: store},
 		appbrief.CashSignal{Closes: store},
 	)
 	reports := appreport.New(store, store, store, harnessAssigner{tasks: tasks}, clk)
@@ -98,6 +100,7 @@ func newHarness(t *testing.T) harness {
 		Handover:  appcafehandover.New(store, store, store, store, clk),
 		Check:     appcafecheck.New(store, store, store, clk),
 		POS:       appcafepos.New(store, store, clk),
+		Prep:      appcafeprep.New(store, store, clk),
 		Actors:    actor.NewLoader(store, reg),
 		JWT:       tokens,
 	}

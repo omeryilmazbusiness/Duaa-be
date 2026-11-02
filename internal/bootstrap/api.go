@@ -25,6 +25,7 @@ import (
 	appcafehandover "github.com/dua-os/dua-os-be/internal/app/cafehandover"
 	appcafeintake "github.com/dua-os/dua-os-be/internal/app/cafeintake"
 	appcafepos "github.com/dua-os/dua-os-be/internal/app/cafepos"
+	appcafeprep "github.com/dua-os/dua-os-be/internal/app/cafeprep"
 	appcafeqr "github.com/dua-os/dua-os-be/internal/app/cafeqr"
 	appcash "github.com/dua-os/dua-os-be/internal/app/cash"
 	appdashboard "github.com/dua-os/dua-os-be/internal/app/dashboard"
@@ -107,6 +108,9 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		if err := mem.AttachPOSPersist(filepath.Join(cfg.DataDir, "cafe-pos.json")); err != nil {
 			return nil, fmt.Errorf("pos persist: %w", err)
 		}
+		if err := mem.AttachPrepPersist(filepath.Join(cfg.DataDir, "cafe-prep.json")); err != nil {
+			return nil, fmt.Errorf("prep persist: %w", err)
+		}
 	}
 	log.Warn("storage", "driver", "memory", "hint", "set DATABASE_URL for postgres")
 	seed, err := SeedCafe(ctx, mem, clk.Now())
@@ -148,6 +152,7 @@ type kernelStore interface {
 	appcafehandover.OpenWork
 	appcafecheck.Repository
 	appcafepos.Repository
+	appcafeprep.Repository
 }
 
 type taskAssigner struct{ tasks *apptask.Service }
@@ -177,6 +182,7 @@ func compose(
 	cafeHandover := appcafehandover.New(store, store, store, store, clk)
 	cafeCheck := appcafecheck.New(store, store, store, clk)
 	cafePOS := appcafepos.New(store, store, clk)
+	cafePrep := appcafeprep.New(store, store, clk)
 	briefs := appbrief.New(store, clk,
 		appbrief.HandoverSignal{Store: store},
 		appbrief.TaskSignal{Tasks: store, Members: store},
@@ -184,6 +190,7 @@ func compose(
 		appbrief.BreakdownSignal{Store: store},
 		appbrief.IntakeSignal{Store: store},
 		appbrief.ChecklistSignal{Store: store},
+		appbrief.PrepSignal{Store: store},
 		appbrief.CashSignal{Closes: store},
 	)
 	reports := appreport.New(store, store, store, assigner, clk)
@@ -212,6 +219,7 @@ func compose(
 			Handover:  cafeHandover,
 			Check:     cafeCheck,
 			POS:       cafePOS,
+			Prep:      cafePrep,
 			Actors:    actor.NewLoader(store, registry),
 			JWT:       tokens,
 		}),

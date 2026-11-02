@@ -82,6 +82,9 @@ type PulseView struct {
 	OpenDone       int  `json:"openDone"`
 	CloseChecks    int  `json:"closeChecks"`
 	CloseDone      int  `json:"closeDone"`
+	WaitingPrep    int  `json:"waitingPrep"`
+	ReadyPrep      int  `json:"readyPrep"`
+	ServedPrep     int  `json:"servedPrep"`
 }
 
 type View struct {
@@ -209,7 +212,8 @@ func buildBrief(kind tenancy.Kind, now time.Time, signals []executive.Signal, st
 		Sources:      sources,
 		SnoozedCount: snoozed,
 		IsClear: pulse.OverdueTasks == 0 && pulse.OpenTasks == 0 && !pulse.HandoverOpen &&
-			pulse.OpenRecoveries == 0 && pulse.OpenBreakdowns == 0 && len(cards) == 0,
+			pulse.OpenRecoveries == 0 && pulse.OpenBreakdowns == 0 &&
+			pulse.WaitingPrep == 0 && pulse.ReadyPrep == 0 && len(cards) == 0,
 	}
 }
 
@@ -231,6 +235,8 @@ func applyPulse(dst *executive.Pulse, sig executive.Signal) {
 		dst.IntakeWritten = p.IntakeWritten
 	case tenancy.SignalChecklist:
 		dst.OpenChecks, dst.OpenDone, dst.CloseChecks, dst.CloseDone = p.OpenChecks, p.OpenDone, p.CloseChecks, p.CloseDone
+	case tenancy.SignalPrepTime:
+		dst.WaitingPrep, dst.ReadyPrep, dst.ServedPrep = p.WaitingPrep, p.ReadyPrep, p.ServedPrep
 	}
 }
 
@@ -296,6 +302,9 @@ func toView(b executive.Brief) View {
 			OpenDone:       b.Pulse.OpenDone,
 			CloseChecks:    b.Pulse.CloseChecks,
 			CloseDone:      b.Pulse.CloseDone,
+			WaitingPrep:    b.Pulse.WaitingPrep,
+			ReadyPrep:      b.Pulse.ReadyPrep,
+			ServedPrep:     b.Pulse.ServedPrep,
 		},
 		Cards:        cards,
 		Sources:      sources,

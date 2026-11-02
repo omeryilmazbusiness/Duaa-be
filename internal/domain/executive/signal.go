@@ -41,6 +41,9 @@ type Pulse struct {
 	OpenDone       int
 	CloseChecks    int
 	CloseDone      int
+	WaitingPrep    int
+	ReadyPrep      int
+	ServedPrep     int
 }
 
 type Source struct {

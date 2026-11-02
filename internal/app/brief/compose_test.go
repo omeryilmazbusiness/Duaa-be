@@ -143,14 +143,15 @@ func TestCafeFloorPulseMergesWithoutInventingWork(t *testing.T) {
 		{Kind: tenancy.SignalBreakdown, SourceKey: "breakdown", Fingerprint: "open=2", Available: true, Count: 2, Priority: 14, TitleKey: "brief.breakdowns", TargetTab: tenancy.TabFeedback, Pulse: &executive.Pulse{OpenBreakdowns: 2}},
 		{Kind: tenancy.SignalDailyClose, SourceKey: "daily_close", Fingerprint: "written=0", Available: true, Count: 0, Pulse: &executive.Pulse{IntakeWritten: false}},
 		{Kind: tenancy.SignalChecklist, SourceKey: "checklist", Fingerprint: "open=1/2,close=0/1", Available: true, Count: 0, Pulse: &executive.Pulse{OpenChecks: 2, OpenDone: 1, CloseChecks: 1, CloseDone: 0}},
+		{Kind: tenancy.SignalPrepTime, SourceKey: "prep_time", Fingerprint: "open=1,wait=1,longest=8", Available: true, Count: 1, Priority: 16, TitleKey: "brief.prepWaiting", TargetTab: tenancy.TabToday, Pulse: &executive.Pulse{WaitingPrep: 1}},
 		{Kind: tenancy.SignalCustomerVoice, SourceKey: "customer_voice", Fingerprint: "open=0,late=0", Available: true, Count: 0, Pulse: &executive.Pulse{}},
 	}
 	brief := buildBrief(tenancy.KindCafe, now, signals, nil)
-	if brief.Pulse.OpenTasks != 3 || !brief.Pulse.HandoverOpen || brief.Pulse.OpenBreakdowns != 2 || brief.Pulse.IntakeWritten || brief.Pulse.OpenRecoveries != 0 || brief.Pulse.OpenChecks != 2 || brief.Pulse.CloseDone != 0 {
+	if brief.Pulse.OpenTasks != 3 || !brief.Pulse.HandoverOpen || brief.Pulse.OpenBreakdowns != 2 || brief.Pulse.IntakeWritten || brief.Pulse.OpenRecoveries != 0 || brief.Pulse.OpenChecks != 2 || brief.Pulse.CloseDone != 0 || brief.Pulse.WaitingPrep != 1 {
 		t.Fatalf("merged pulse=%+v", brief.Pulse)
 	}
-	if len(brief.Cards) != 3 {
-		t.Fatalf("handover+late+breakdown cards, got %d", len(brief.Cards))
+	if len(brief.Cards) != 4 {
+		t.Fatalf("handover+late+breakdown+prep cards, got %d", len(brief.Cards))
 	}
 	if brief.Cards[0].Kind != tenancy.SignalHandover {
 		t.Fatalf("handover is first: %v", brief.Cards[0].Kind)

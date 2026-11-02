@@ -125,6 +125,9 @@ func Format(in Input) string {
 	if br := in.Brief; br != nil {
 		fmt.Fprintf(&b, "Brief: overdue=%d, pending decisions=%d, assigned follow-ups=%d, snoozed=%d, all clear=%t\n",
 			br.Headline.OverdueTasks, br.Headline.PendingDecisions, br.Headline.AssignedFollowups, br.SnoozedCount, br.IsClear)
+		if p := br.Pulse; p.WaitingPrep+p.ReadyPrep+p.ServedPrep > 0 {
+			fmt.Fprintf(&b, "Prep: waiting=%d plated=%d served=%d (recorded tickets only)\n", p.WaitingPrep, p.ReadyPrep, p.ServedPrep)
+		}
 		for i, c := range br.Cards {
 			if i == maxCards {
 				break
