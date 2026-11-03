@@ -70,21 +70,24 @@ type HeadlineView struct {
 }
 
 type PulseView struct {
-	OverdueTasks   int  `json:"overdueTasks"`
-	OpenTasks      int  `json:"openTasks"`
-	CompletedToday int  `json:"completedToday"`
-	OpenRecoveries int  `json:"openRecoveries"`
-	LateRecoveries int  `json:"lateRecoveries"`
-	OpenBreakdowns int  `json:"openBreakdowns"`
-	HandoverOpen   bool `json:"handoverOpen"`
-	IntakeWritten  bool `json:"intakeWritten"`
-	OpenChecks     int  `json:"openChecks"`
-	OpenDone       int  `json:"openDone"`
-	CloseChecks    int  `json:"closeChecks"`
-	CloseDone      int  `json:"closeDone"`
-	WaitingPrep    int  `json:"waitingPrep"`
-	ReadyPrep      int  `json:"readyPrep"`
-	ServedPrep     int  `json:"servedPrep"`
+	OverdueTasks   int   `json:"overdueTasks"`
+	OpenTasks      int   `json:"openTasks"`
+	CompletedToday int   `json:"completedToday"`
+	OpenRecoveries int   `json:"openRecoveries"`
+	LateRecoveries int   `json:"lateRecoveries"`
+	OpenBreakdowns int   `json:"openBreakdowns"`
+	HandoverOpen   bool  `json:"handoverOpen"`
+	IntakeWritten  bool  `json:"intakeWritten"`
+	OpenChecks     int   `json:"openChecks"`
+	OpenDone       int   `json:"openDone"`
+	CloseChecks    int   `json:"closeChecks"`
+	CloseDone      int   `json:"closeDone"`
+	WaitingPrep    int   `json:"waitingPrep"`
+	ReadyPrep      int   `json:"readyPrep"`
+	ServedPrep     int   `json:"servedPrep"`
+	WasteTickets   int   `json:"wasteTickets"`
+	WasteGrams     int64 `json:"wasteGrams"`
+	WasteCost      int64 `json:"wasteCost"`
 }
 
 type View struct {
@@ -237,6 +240,8 @@ func applyPulse(dst *executive.Pulse, sig executive.Signal) {
 		dst.OpenChecks, dst.OpenDone, dst.CloseChecks, dst.CloseDone = p.OpenChecks, p.OpenDone, p.CloseChecks, p.CloseDone
 	case tenancy.SignalPrepTime:
 		dst.WaitingPrep, dst.ReadyPrep, dst.ServedPrep = p.WaitingPrep, p.ReadyPrep, p.ServedPrep
+	case tenancy.SignalWaste:
+		dst.WasteTickets, dst.WasteGrams, dst.WasteCost = p.WasteTickets, p.WasteGrams, p.WasteCost
 	}
 }
 
@@ -305,6 +310,9 @@ func toView(b executive.Brief) View {
 			WaitingPrep:    b.Pulse.WaitingPrep,
 			ReadyPrep:      b.Pulse.ReadyPrep,
 			ServedPrep:     b.Pulse.ServedPrep,
+			WasteTickets:   b.Pulse.WasteTickets,
+			WasteGrams:     b.Pulse.WasteGrams,
+			WasteCost:      b.Pulse.WasteCost,
 		},
 		Cards:        cards,
 		Sources:      sources,

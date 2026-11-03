@@ -279,3 +279,42 @@ func TestApprovalsSurviveReload(t *testing.T) {
 		t.Fatalf("reload=%+v err=%v", got, err)
 	}
 }
+
+func TestWasteTicketsAndRecipesSurviveReload(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cafe-waste.json")
+	wid := id.MustParse("22222222-2222-4222-8222-222222222222")
+	now := time.Date(2026, 11, 2, 10, 0, 0, 0, time.UTC)
+	a := memory.New()
+	if err := a.AttachWastePersist(path); err != nil {
+		t.Fatal(err)
+	}
+	book, err := cafe.ReplaceRecipes(wid, id.New(), []cafe.Recipe{{
+		Name: "Latte", Station: cafe.StationBar, Lines: []cafe.RecipeLine{{Title: "milk", Grams: 180}},
+	}}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SaveRecipeBook(t.Context(), book); err != nil {
+		t.Fatal(err)
+	}
+	ticket, err := cafe.NewWasteTicket(wid, id.New(), "2026-11-02", "bar", "latte", "prep", "", book.Items[0].ID, 180, 2500, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.CreateWasteTicket(t.Context(), ticket); err != nil {
+		t.Fatal(err)
+	}
+	b := memory.New()
+	if err := b.AttachWastePersist(path); err != nil {
+		t.Fatal(err)
+	}
+	list, err := b.ListWasteTickets(t.Context(), wid, "2026-11-02")
+	if err != nil || len(list) != 1 || list[0].Item != "latte" || list[0].Cost != 2500 {
+		t.Fatalf("reload tickets=%+v err=%v", list, err)
+	}
+	got, err := b.GetRecipeBook(t.Context(), wid)
+	if err != nil || len(got.Items) != 1 || got.Items[0].Name != "Latte" {
+		t.Fatalf("reload book=%+v err=%v", got, err)
+	}
+}

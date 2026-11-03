@@ -101,6 +101,14 @@ func Format(in Input) string {
 				b.WriteString("POS: not connected\n")
 			}
 		}
+		if w := d.Waste; w != nil {
+			if w.Status == "live" {
+				fmt.Fprintf(&b, "Waste day %s: live tickets=%d grams=%d cost=%d (recorded only, never from POS)\n",
+					line(w.BusinessDate), w.TicketCount, w.Grams, w.Cost)
+			} else {
+				b.WriteString("Waste: not connected\n")
+			}
+		}
 		if c := d.Cash; c != nil {
 			fmt.Fprintf(&b, "Till close for %s: %s", line(c.BusinessDate), line(c.Status))
 			if c.CountedAmount != nil {

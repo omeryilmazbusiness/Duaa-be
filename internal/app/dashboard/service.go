@@ -30,14 +30,15 @@ type Service struct {
 	cash      CashReader
 	approvals ApprovalReader
 	sales     SalesReader
+	waste     WasteReader
 	clock     clock.Clock
 }
 
-func New(tasks TaskReader, members MembershipReader, reports ReportReader, users UserReader, cash CashReader, approvals ApprovalReader, sales SalesReader, clk clock.Clock) *Service {
+func New(tasks TaskReader, members MembershipReader, reports ReportReader, users UserReader, cash CashReader, approvals ApprovalReader, sales SalesReader, waste WasteReader, clk clock.Clock) *Service {
 	if clk == nil {
 		clk = clock.System{}
 	}
-	return &Service{tasks: tasks, members: members, reports: reports, users: users, cash: cash, approvals: approvals, sales: sales, clock: clk}
+	return &Service{tasks: tasks, members: members, reports: reports, users: users, cash: cash, approvals: approvals, sales: sales, waste: waste, clock: clk}
 }
 
 type TileView struct {
@@ -95,6 +96,17 @@ type SalesView struct {
 	ClosedAt     string `json:"closedAt,omitempty"`
 }
 
+type WasteView struct {
+	Status       string `json:"status"`
+	ReasonKey    string `json:"reasonKey,omitempty"`
+	BusinessDate string `json:"businessDate"`
+	TicketCount  int    `json:"ticketCount"`
+	Grams        int64  `json:"grams"`
+	Cost         int64  `json:"cost"`
+	KitchenGrams int64  `json:"kitchenGrams"`
+	BarGrams     int64  `json:"barGrams"`
+}
+
 type ApprovalView struct {
 	ID       string `json:"id"`
 	Title    string `json:"title"`
@@ -114,6 +126,7 @@ type View struct {
 	Tiles       []TileView     `json:"tiles"`
 	Cash        *CashView      `json:"cash,omitempty"`
 	Sales       *SalesView     `json:"sales,omitempty"`
+	Waste       *WasteView     `json:"waste,omitempty"`
 	Approvals   []ApprovalView `json:"approvals,omitempty"`
 	Workload    []LoadView     `json:"workload"`
 }
@@ -136,6 +149,7 @@ func (s *Service) ForGM(ctx context.Context, ac actor.Context) (View, error) {
 		tickets   []cafe.Ticket
 		posClose  cafe.POSClose
 		posErr    error
+		wasteRows []cafe.WasteTicket
 	)
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -188,6 +202,13 @@ func (s *Service) ForGM(ctx context.Context, ac actor.Context) (View, error) {
 			return err
 		})
 	}
+	if seeMoney && s.waste != nil {
+		g.Go(func() error {
+			list, err := s.waste.ListWasteTickets(gctx, ac.Workspace.ID, date)
+			wasteRows = list
+			return err
+		})
+	}
 	if err := g.Wait(); err != nil {
 		return View{}, err
 	}
@@ -232,6 +253,18 @@ func (s *Service) ForGM(ctx context.Context, ac actor.Context) (View, error) {
 		}
 	}
 
+	var wasteView *WasteView
+	if seeMoney {
+		wasteView = &WasteView{Status: "unavailable", ReasonKey: "dash.wasteNotWired", BusinessDate: date}
+		dayWaste := cafe.SummarizeWaste(date, wasteRows)
+		if dayWaste.Live() {
+			wasteView = &WasteView{
+				Status: "live", BusinessDate: date, TicketCount: dayWaste.TicketCount,
+				Grams: dayWaste.Grams, Cost: dayWaste.Cost, KitchenGrams: dayWaste.KitchenGrams, BarGrams: dayWaste.BarGrams,
+			}
+		}
+	}
+
 	var cashView *CashView
 	if seeMoney {
 		cashView = &CashView{Status: "unavailable", ReasonKey: "brief.cashNotClosed", BusinessDate: date}
@@ -253,7 +286,7 @@ func (s *Service) ForGM(ctx context.Context, ac actor.Context) (View, error) {
 		if moneyModule(mod) && !seeMoney {
 			continue
 		}
-		tiles = append(tiles, s.tile(mod, pulse, cashView, salesView, pending))
+		tiles = append(tiles, s.tile(mod, pulse, cashView, salesView, wasteView, pending))
 	}
 
 	out := View{
@@ -264,6 +297,7 @@ func (s *Service) ForGM(ctx context.Context, ac actor.Context) (View, error) {
 		Tiles:       tiles,
 		Cash:        cashView,
 		Sales:       salesView,
+		Waste:       wasteView,
 		Workload:    load,
 	}
 	if seeMoney {
@@ -281,7 +315,7 @@ func moneyModule(mod tenancy.DashboardModule) bool {
 	}
 }
 
-func (s *Service) tile(mod tenancy.DashboardModule, pulse PulseView, cash *CashView, sales *SalesView, pending int) TileView {
+func (s *Service) tile(mod tenancy.DashboardModule, pulse PulseView, cash *CashView, sales *SalesView, waste *WasteView, pending int) TileView {
 	switch mod {
 	case tenancy.ModulePulse:
 		return TileView{Module: string(mod), Status: "live", Value: int64(pulse.OverdueTasks), LabelKey: "overdue"}
@@ -306,7 +340,13 @@ func (s *Service) tile(mod tenancy.DashboardModule, pulse PulseView, cash *CashV
 		}
 		return tile
 	case tenancy.ModuleWaste:
-		return TileView{Module: string(mod), Status: "unavailable", ReasonKey: "dash.wasteNotWired", LabelKey: "waste"}
+		tile := TileView{Module: string(mod), Status: "unavailable", ReasonKey: "dash.wasteNotWired", LabelKey: "waste"}
+		if waste != nil && waste.Status == "live" {
+			tile.Status = "live"
+			tile.ReasonKey = ""
+			tile.Value = waste.Cost
+		}
+		return tile
 	case tenancy.ModuleOccupancy:
 		return TileView{Module: string(mod), Status: "unavailable", ReasonKey: "dash.occupancyNotWired", LabelKey: "occupancy"}
 	default:

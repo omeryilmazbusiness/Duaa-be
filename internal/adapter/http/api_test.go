@@ -24,6 +24,7 @@ import (
 	appcafepos "github.com/dua-os/dua-os-be/internal/app/cafepos"
 	appcafeprep "github.com/dua-os/dua-os-be/internal/app/cafeprep"
 	appcafeqr "github.com/dua-os/dua-os-be/internal/app/cafeqr"
+	appcafewaste "github.com/dua-os/dua-os-be/internal/app/cafewaste"
 	appcash "github.com/dua-os/dua-os-be/internal/app/cash"
 	appdashboard "github.com/dua-os/dua-os-be/internal/app/dashboard"
 	appdecision "github.com/dua-os/dua-os-be/internal/app/decision"
@@ -74,10 +75,11 @@ func newHarness(t *testing.T) harness {
 		appbrief.IntakeSignal{Store: store},
 		appbrief.ChecklistSignal{Store: store},
 		appbrief.PrepSignal{Store: store},
+		appbrief.WasteSignal{Store: store},
 		appbrief.CashSignal{Closes: store},
 	)
 	reports := appreport.New(store, store, store, harnessAssigner{tasks: tasks}, clk)
-	dash := appdashboard.New(store, store, store, store, store, store, store, clk)
+	dash := appdashboard.New(store, store, store, store, store, store, store, store, clk)
 	vault, err := secretbox.New("0123456789abcdef0123456789abcdef")
 	if err != nil {
 		t.Fatal(err)
@@ -101,6 +103,7 @@ func newHarness(t *testing.T) harness {
 		Check:     appcafecheck.New(store, store, store, clk),
 		POS:       appcafepos.New(store, store, clk),
 		Prep:      appcafeprep.New(store, store, clk),
+		Waste:     appcafewaste.New(store, store, clk),
 		Actors:    actor.NewLoader(store, reg),
 		JWT:       tokens,
 	}
@@ -858,7 +861,7 @@ func TestPOSBindCAF01RecordedTicketsOnly(t *testing.T) {
 			t.Fatal("sales tile must not go live with no tickets")
 		}
 		if tile["module"] == "waste" && tile["status"] == "live" {
-			t.Fatal("waste stays unwired")
+			t.Fatal("POS must not invent waste")
 		}
 	}
 

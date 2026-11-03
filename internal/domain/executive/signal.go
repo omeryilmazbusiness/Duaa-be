@@ -44,6 +44,9 @@ type Pulse struct {
 	WaitingPrep    int
 	ReadyPrep      int
 	ServedPrep     int
+	WasteTickets   int
+	WasteGrams     int64
+	WasteCost      int64
 }
 
 type Source struct {

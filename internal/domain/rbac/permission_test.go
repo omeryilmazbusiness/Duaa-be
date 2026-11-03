@@ -75,6 +75,15 @@ func TestFloorRecordsPrepTimes(t *testing.T) {
 	}
 }
 
+func TestFloorRecordsWaste(t *testing.T) {
+	if !rbac.Allows(staffscope.GeneralManager, rbac.RecordWaste) || !rbac.Allows(staffscope.DepartmentManager, rbac.RecordWaste) || !rbac.Allows(staffscope.FloorOps, rbac.RecordWaste) {
+		t.Fatal("managers record waste")
+	}
+	if rbac.Allows(staffscope.StaffPersonnel, rbac.RecordWaste) {
+		t.Fatal("employee must not record waste")
+	}
+}
+
 func TestManagersReadCafeDefinition(t *testing.T) {
 	if !rbac.Allows(staffscope.GeneralManager, rbac.ViewCafe) {
 		t.Fatal("GM reads cafe definition")

@@ -62,7 +62,7 @@ func (Catalog) FloorOpsTabs() []tenancy.Tab {
 func (Catalog) ExecutiveSignals() []tenancy.SignalKind {
 	return []tenancy.SignalKind{
 		tenancy.SignalHandover, tenancy.SignalLateStaff, tenancy.SignalCustomerVoice,
-		tenancy.SignalBreakdown, tenancy.SignalDailyClose, tenancy.SignalChecklist, tenancy.SignalPrepTime, tenancy.SignalCashVariance,
+		tenancy.SignalBreakdown, tenancy.SignalDailyClose, tenancy.SignalChecklist, tenancy.SignalPrepTime, tenancy.SignalWaste, tenancy.SignalCashVariance,
 	}
 }
 

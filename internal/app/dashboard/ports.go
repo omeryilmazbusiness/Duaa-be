@@ -39,3 +39,7 @@ type SalesReader interface {
 	ListPOSTickets(ctx context.Context, workspaceID id.ID, businessDate string) ([]cafe.Ticket, error)
 	GetPOSClose(ctx context.Context, workspaceID id.ID, businessDate string) (cafe.POSClose, error)
 }
+
+type WasteReader interface {
+	ListWasteTickets(ctx context.Context, workspaceID id.ID, businessDate string) ([]cafe.WasteTicket, error)
+}

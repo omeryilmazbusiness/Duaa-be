@@ -27,6 +27,7 @@ import (
 	appcafepos "github.com/dua-os/dua-os-be/internal/app/cafepos"
 	appcafeprep "github.com/dua-os/dua-os-be/internal/app/cafeprep"
 	appcafeqr "github.com/dua-os/dua-os-be/internal/app/cafeqr"
+	appcafewaste "github.com/dua-os/dua-os-be/internal/app/cafewaste"
 	appcash "github.com/dua-os/dua-os-be/internal/app/cash"
 	appdashboard "github.com/dua-os/dua-os-be/internal/app/dashboard"
 	appdecision "github.com/dua-os/dua-os-be/internal/app/decision"
@@ -111,6 +112,9 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		if err := mem.AttachPrepPersist(filepath.Join(cfg.DataDir, "cafe-prep.json")); err != nil {
 			return nil, fmt.Errorf("prep persist: %w", err)
 		}
+		if err := mem.AttachWastePersist(filepath.Join(cfg.DataDir, "cafe-waste.json")); err != nil {
+			return nil, fmt.Errorf("waste persist: %w", err)
+		}
 	}
 	log.Warn("storage", "driver", "memory", "hint", "set DATABASE_URL for postgres")
 	seed, err := SeedCafe(ctx, mem, clk.Now())
@@ -153,6 +157,7 @@ type kernelStore interface {
 	appcafecheck.Repository
 	appcafepos.Repository
 	appcafeprep.Repository
+	appcafewaste.Repository
 }
 
 type taskAssigner struct{ tasks *apptask.Service }
@@ -183,6 +188,7 @@ func compose(
 	cafeCheck := appcafecheck.New(store, store, store, clk)
 	cafePOS := appcafepos.New(store, store, clk)
 	cafePrep := appcafeprep.New(store, store, clk)
+	cafeWaste := appcafewaste.New(store, store, clk)
 	briefs := appbrief.New(store, clk,
 		appbrief.HandoverSignal{Store: store},
 		appbrief.TaskSignal{Tasks: store, Members: store},
@@ -191,10 +197,11 @@ func compose(
 		appbrief.IntakeSignal{Store: store},
 		appbrief.ChecklistSignal{Store: store},
 		appbrief.PrepSignal{Store: store},
+		appbrief.WasteSignal{Store: store},
 		appbrief.CashSignal{Closes: store},
 	)
 	reports := appreport.New(store, store, store, assigner, clk)
-	dashboard := appdashboard.New(store, store, store, store, store, store, store, clk)
+	dashboard := appdashboard.New(store, store, store, store, store, store, store, store, clk)
 	gateway := llm.NewGateway(cfg.OpenAIBaseURL, cfg.GeminiBaseURL)
 	assistant := appassistant.New(store, store, vault, gateway,
 		assistantctx.New(dashboard, briefs, tasks, reports), gateway, clk)
@@ -220,6 +227,7 @@ func compose(
 			Check:     cafeCheck,
 			POS:       cafePOS,
 			Prep:      cafePrep,
+			Waste:     cafeWaste,
 			Actors:    actor.NewLoader(store, registry),
 			JWT:       tokens,
 		}),
