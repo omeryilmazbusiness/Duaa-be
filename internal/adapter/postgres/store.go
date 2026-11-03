@@ -191,7 +191,8 @@ func (s *Store) GetTask(ctx context.Context, tid id.ID) (work.Task, error) {
 	return t, nil
 }
 
-const taskSelect = `SELECT id, workspace_id, assignee_user_id, created_by_user_id, title, coalesce(description,''), scheduled_start_at, scheduled_end_at, status, coalesce(routine_id,'00000000-0000-0000-0000-000000000000'), coalesce(source_date,''), completed_at, created_at, updated_at FROM staff_tasks`
+// source_date is DATE — must cast before coalesce('', …) or Postgres rejects the query.
+const taskSelect = `SELECT id, workspace_id, assignee_user_id, created_by_user_id, title, coalesce(description,''), scheduled_start_at, scheduled_end_at, status, coalesce(routine_id,'00000000-0000-0000-0000-000000000000'), coalesce(source_date::text,''), completed_at, created_at, updated_at FROM staff_tasks`
 
 func scanTask(row pgx.Row) (work.Task, error) {
 	var t work.Task
