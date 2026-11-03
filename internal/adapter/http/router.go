@@ -16,6 +16,7 @@ import (
 	appcafepos "github.com/dua-os/dua-os-be/internal/app/cafepos"
 	appcafeprep "github.com/dua-os/dua-os-be/internal/app/cafeprep"
 	appcafeqr "github.com/dua-os/dua-os-be/internal/app/cafeqr"
+	appcafestock "github.com/dua-os/dua-os-be/internal/app/cafestock"
 	appcafewaste "github.com/dua-os/dua-os-be/internal/app/cafewaste"
 	appcash "github.com/dua-os/dua-os-be/internal/app/cash"
 	appdashboard "github.com/dua-os/dua-os-be/internal/app/dashboard"
@@ -50,6 +51,7 @@ type API struct {
 	POS       *appcafepos.Service
 	Prep      *appcafeprep.Service
 	Waste     *appcafewaste.Service
+	Stock     *appcafestock.Service
 	Actors    *actor.Loader
 	JWT       *authn.JWT
 }
@@ -159,6 +161,9 @@ func NewRouter(cfg config.Config, api API) http.Handler {
 				r.Get("/cafe/waste", api.getCafeWaste)
 				r.Post("/cafe/waste/tickets", api.recordCafeWaste)
 				r.Put("/cafe/waste/recipes", api.putCafeRecipes)
+				r.Get("/cafe/stock", api.getCafeStock)
+				r.Put("/cafe/stock/catalog", api.putCafeStockCatalog)
+				r.Post("/cafe/stock/adjustments", api.recordCafeStockAdjustment)
 			})
 		})
 	})

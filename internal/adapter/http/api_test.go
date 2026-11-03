@@ -24,6 +24,7 @@ import (
 	appcafepos "github.com/dua-os/dua-os-be/internal/app/cafepos"
 	appcafeprep "github.com/dua-os/dua-os-be/internal/app/cafeprep"
 	appcafeqr "github.com/dua-os/dua-os-be/internal/app/cafeqr"
+	appcafestock "github.com/dua-os/dua-os-be/internal/app/cafestock"
 	appcafewaste "github.com/dua-os/dua-os-be/internal/app/cafewaste"
 	appcash "github.com/dua-os/dua-os-be/internal/app/cash"
 	appdashboard "github.com/dua-os/dua-os-be/internal/app/dashboard"
@@ -104,6 +105,7 @@ func newHarness(t *testing.T) harness {
 		POS:       appcafepos.New(store, store, clk),
 		Prep:      appcafeprep.New(store, store, clk),
 		Waste:     appcafewaste.New(store, store, clk),
+		Stock:     appcafestock.New(store, store, clk),
 		Actors:    actor.NewLoader(store, reg),
 		JWT:       tokens,
 	}

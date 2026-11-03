@@ -84,6 +84,15 @@ func TestFloorRecordsWaste(t *testing.T) {
 	}
 }
 
+func TestFloorRecordsStock(t *testing.T) {
+	if !rbac.Allows(staffscope.GeneralManager, rbac.RecordStock) || !rbac.Allows(staffscope.DepartmentManager, rbac.RecordStock) || !rbac.Allows(staffscope.FloorOps, rbac.RecordStock) {
+		t.Fatal("managers record stock")
+	}
+	if rbac.Allows(staffscope.StaffPersonnel, rbac.RecordStock) {
+		t.Fatal("employee must not record stock")
+	}
+}
+
 func TestManagersReadCafeDefinition(t *testing.T) {
 	if !rbac.Allows(staffscope.GeneralManager, rbac.ViewCafe) {
 		t.Fatal("GM reads cafe definition")

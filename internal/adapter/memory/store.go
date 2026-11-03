@@ -55,6 +55,9 @@ type Store struct {
 	wasteTickets    map[id.ID]cafe.WasteTicket
 	recipeBooks     map[id.ID]cafe.RecipeBook
 	wastePersist    string
+	stockCatalogs   map[id.ID]cafe.StockCatalog
+	stockAdjusts    map[id.ID]cafe.StockAdjustment
+	stockPersist    string
 	emailIndex      map[string]id.ID
 	slugIndex       map[string]id.ID
 	employeeIdx     map[string]id.ID
@@ -88,6 +91,8 @@ func New() *Store {
 		prepTickets:    map[id.ID]cafe.PrepTicket{},
 		wasteTickets:   map[id.ID]cafe.WasteTicket{},
 		recipeBooks:    map[id.ID]cafe.RecipeBook{},
+		stockCatalogs:  map[id.ID]cafe.StockCatalog{},
+		stockAdjusts:   map[id.ID]cafe.StockAdjustment{},
 		emailIndex:     map[string]id.ID{},
 		slugIndex:      map[string]id.ID{},
 		employeeIdx:    map[string]id.ID{},

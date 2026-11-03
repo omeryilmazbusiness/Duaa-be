@@ -280,6 +280,46 @@ func TestApprovalsSurviveReload(t *testing.T) {
 	}
 }
 
+func TestStockCatalogAndAdjustmentsSurviveReload(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cafe-stock.json")
+	wid := id.MustParse("22222222-2222-4222-8222-222222222222")
+	author := id.New()
+	now := time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)
+	a := memory.New()
+	if err := a.AttachStockPersist(path); err != nil {
+		t.Fatal(err)
+	}
+	book, err := cafe.ReplaceStockCatalog(wid, author, []cafe.StockItem{{
+		Name: "Oat milk", Station: cafe.StationBar, Unit: cafe.UnitMillil, ParQty: 3000, Active: true,
+	}}, cafe.StockCatalog{}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SaveStockCatalog(t.Context(), book); err != nil {
+		t.Fatal(err)
+	}
+	adj, err := cafe.NewStockAdjustment(wid, book.Items[0].ID, author, "2026-11-03", 1800, 1800, "count", "am", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.CreateStockAdjustment(t.Context(), adj); err != nil {
+		t.Fatal(err)
+	}
+	b := memory.New()
+	if err := b.AttachStockPersist(path); err != nil {
+		t.Fatal(err)
+	}
+	got, err := b.GetStockCatalog(t.Context(), wid)
+	if err != nil || len(got.Items) != 1 || got.Items[0].Name != "Oat milk" {
+		t.Fatalf("reload catalog=%+v err=%v", got, err)
+	}
+	list, err := b.ListStockAdjustments(t.Context(), wid, "2026-11-03")
+	if err != nil || len(list) != 1 || list[0].OnHandAfter != 1800 {
+		t.Fatalf("reload adj=%+v err=%v", list, err)
+	}
+}
+
 func TestWasteTicketsAndRecipesSurviveReload(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "cafe-waste.json")

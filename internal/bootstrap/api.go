@@ -27,6 +27,7 @@ import (
 	appcafepos "github.com/dua-os/dua-os-be/internal/app/cafepos"
 	appcafeprep "github.com/dua-os/dua-os-be/internal/app/cafeprep"
 	appcafeqr "github.com/dua-os/dua-os-be/internal/app/cafeqr"
+	appcafestock "github.com/dua-os/dua-os-be/internal/app/cafestock"
 	appcafewaste "github.com/dua-os/dua-os-be/internal/app/cafewaste"
 	appcash "github.com/dua-os/dua-os-be/internal/app/cash"
 	appdashboard "github.com/dua-os/dua-os-be/internal/app/dashboard"
@@ -115,6 +116,9 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		if err := mem.AttachWastePersist(filepath.Join(cfg.DataDir, "cafe-waste.json")); err != nil {
 			return nil, fmt.Errorf("waste persist: %w", err)
 		}
+		if err := mem.AttachStockPersist(filepath.Join(cfg.DataDir, "cafe-stock.json")); err != nil {
+			return nil, fmt.Errorf("stock persist: %w", err)
+		}
 	}
 	log.Warn("storage", "driver", "memory", "hint", "set DATABASE_URL for postgres")
 	seed, err := SeedCafe(ctx, mem, clk.Now())
@@ -158,6 +162,7 @@ type kernelStore interface {
 	appcafepos.Repository
 	appcafeprep.Repository
 	appcafewaste.Repository
+	appcafestock.Repository
 }
 
 type taskAssigner struct{ tasks *apptask.Service }
@@ -189,6 +194,7 @@ func compose(
 	cafePOS := appcafepos.New(store, store, clk)
 	cafePrep := appcafeprep.New(store, store, clk)
 	cafeWaste := appcafewaste.New(store, store, clk)
+	cafeStock := appcafestock.New(store, store, clk)
 	briefs := appbrief.New(store, clk,
 		appbrief.HandoverSignal{Store: store},
 		appbrief.TaskSignal{Tasks: store, Members: store},
@@ -228,6 +234,7 @@ func compose(
 			POS:       cafePOS,
 			Prep:      cafePrep,
 			Waste:     cafeWaste,
+			Stock:     cafeStock,
 			Actors:    actor.NewLoader(store, registry),
 			JWT:       tokens,
 		}),
