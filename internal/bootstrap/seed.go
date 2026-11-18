@@ -13,10 +13,14 @@ import (
 // Stable memory-seed IDs so a stored AI key survives process restarts
 // (the ciphertext is bound to the workspace id).
 var (
-	seedOrgID  = id.MustParse("11111111-1111-4111-8111-111111111111")
-	seedCafeID = id.MustParse("22222222-2222-4222-8222-222222222222")
-	seedGMID   = id.MustParse("33333333-3333-4333-8333-333333333333")
-	seedMemID  = id.MustParse("44444444-4444-4444-8444-444444444444")
+	seedOrgID    = id.MustParse("11111111-1111-4111-8111-111111111111")
+	seedCafeID   = id.MustParse("22222222-2222-4222-8222-222222222222")
+	seedHotel1ID = id.MustParse("22222222-2222-4222-8222-222222222223")
+	seedHotel2ID = id.MustParse("22222222-2222-4222-8222-222222222224")
+	seedGMID     = id.MustParse("33333333-3333-4333-8333-333333333333")
+	seedMemID    = id.MustParse("44444444-4444-4444-8444-444444444444")
+	seedMemH1ID  = id.MustParse("44444444-4444-4444-8444-444444444445")
+	seedMemH2ID  = id.MustParse("44444444-4444-4444-8444-444444444446")
 )
 
 type SeedStore interface {
@@ -31,6 +35,49 @@ type SeedResult struct {
 	CafeID         id.ID
 	GMEmail        string
 	GMPassword     string
+}
+
+type PortfolioSeedResult struct {
+	SheratonID  id.ID
+	AlShohadaID id.ID
+}
+
+// SeedPortfolioHotels attaches Duaa's two hotels (Sheraton Hotel & Al Shohada Hotel)
+// to the seeded organization and GM account without altering SeedCafe's single-tenant tests.
+func SeedPortfolioHotels(ctx context.Context, store SeedStore, now time.Time) (PortfolioSeedResult, error) {
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	sheraton, err := tenancy.NewWorkspace(seedOrgID, tenancy.KindHotel, "Sheraton Hotel", "sheraton-hotel", "Asia/Baghdad", now.Add(time.Second))
+	if err != nil {
+		return PortfolioSeedResult{}, err
+	}
+	sheraton.ID = seedHotel1ID
+	if err := store.CreateWorkspace(ctx, sheraton); err != nil {
+		return PortfolioSeedResult{}, err
+	}
+	if err := store.CreateMembership(ctx, identity.Membership{
+		ID: seedMemH1ID, WorkspaceID: sheraton.ID, UserID: seedGMID,
+		Role: identity.RoleManager, IsActive: true, CreatedAt: now.Add(time.Second), UpdatedAt: now.Add(time.Second),
+	}); err != nil {
+		return PortfolioSeedResult{}, err
+	}
+
+	shohada, err := tenancy.NewWorkspace(seedOrgID, tenancy.KindHotel, "Al Shohada Hotel", "al-shohada-hotel", "Asia/Baghdad", now.Add(2*time.Second))
+	if err != nil {
+		return PortfolioSeedResult{}, err
+	}
+	shohada.ID = seedHotel2ID
+	if err := store.CreateWorkspace(ctx, shohada); err != nil {
+		return PortfolioSeedResult{}, err
+	}
+	if err := store.CreateMembership(ctx, identity.Membership{
+		ID: seedMemH2ID, WorkspaceID: shohada.ID, UserID: seedGMID,
+		Role: identity.RoleManager, IsActive: true, CreatedAt: now.Add(2 * time.Second), UpdatedAt: now.Add(2 * time.Second),
+	}); err != nil {
+		return PortfolioSeedResult{}, err
+	}
+	return PortfolioSeedResult{SheratonID: sheraton.ID, AlShohadaID: shohada.ID}, nil
 }
 
 // SeedCafe boots the first vertical only. Hotel/supply catalogs stay registered

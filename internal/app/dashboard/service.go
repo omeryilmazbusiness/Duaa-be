@@ -12,6 +12,7 @@ import (
 	"github.com/dua-os/dua-os-be/internal/app/actor"
 	"github.com/dua-os/dua-os-be/internal/domain/cafe"
 	"github.com/dua-os/dua-os-be/internal/domain/finance"
+	"github.com/dua-os/dua-os-be/internal/domain/hotel"
 	"github.com/dua-os/dua-os-be/internal/domain/identity"
 	"github.com/dua-os/dua-os-be/internal/domain/opsreport"
 	"github.com/dua-os/dua-os-be/internal/domain/rbac"
@@ -31,6 +32,7 @@ type Service struct {
 	approvals ApprovalReader
 	sales     SalesReader
 	waste     WasteReader
+	occupancy OccupancyReader
 	clock     clock.Clock
 }
 
@@ -39,6 +41,10 @@ func New(tasks TaskReader, members MembershipReader, reports ReportReader, users
 		clk = clock.System{}
 	}
 	return &Service{tasks: tasks, members: members, reports: reports, users: users, cash: cash, approvals: approvals, sales: sales, waste: waste, clock: clk}
+}
+
+func (s *Service) SetOccupancyReader(r OccupancyReader) {
+	s.occupancy = r
 }
 
 type TileView struct {
@@ -150,6 +156,8 @@ func (s *Service) ForGM(ctx context.Context, ac actor.Context) (View, error) {
 		posClose  cafe.POSClose
 		posErr    error
 		wasteRows []cafe.WasteTicket
+		pmsSnap   hotel.PMSSnapshot
+		pmsErr    error
 	)
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -206,6 +214,16 @@ func (s *Service) ForGM(ctx context.Context, ac actor.Context) (View, error) {
 		g.Go(func() error {
 			list, err := s.waste.ListWasteTickets(gctx, ac.Workspace.ID, date)
 			wasteRows = list
+			return err
+		})
+	}
+	if s.occupancy != nil && ac.Workspace.Kind == tenancy.KindHotel {
+		g.Go(func() error {
+			snap, err := s.occupancy.GetPMSSnapshot(gctx, ac.Workspace.ID, date)
+			pmsSnap, pmsErr = snap, err
+			if errors.Is(err, errx.ErrNotFound) {
+				return nil
+			}
 			return err
 		})
 	}
@@ -281,12 +299,18 @@ func (s *Service) ForGM(ctx context.Context, ac actor.Context) (View, error) {
 		}
 	}
 
+	var occPct *int64
+	if pmsErr == nil && pmsSnap.ID != id.Zero() && pmsSnap.AvailableRooms() > 0 {
+		v := int64(pmsSnap.OccupancyBasisPoints() / 100)
+		occPct = &v
+	}
+
 	tiles := make([]TileView, 0, len(ac.Catalog.DashboardModules()))
 	for _, mod := range ac.Catalog.DashboardModules() {
 		if moneyModule(mod) && !seeMoney {
 			continue
 		}
-		tiles = append(tiles, s.tile(mod, pulse, cashView, salesView, wasteView, pending))
+		tiles = append(tiles, s.tile(mod, pulse, cashView, salesView, wasteView, occPct, pending))
 	}
 
 	out := View{
@@ -315,7 +339,7 @@ func moneyModule(mod tenancy.DashboardModule) bool {
 	}
 }
 
-func (s *Service) tile(mod tenancy.DashboardModule, pulse PulseView, cash *CashView, sales *SalesView, waste *WasteView, pending int) TileView {
+func (s *Service) tile(mod tenancy.DashboardModule, pulse PulseView, cash *CashView, sales *SalesView, waste *WasteView, occPct *int64, pending int) TileView {
 	switch mod {
 	case tenancy.ModulePulse:
 		return TileView{Module: string(mod), Status: "live", Value: int64(pulse.OverdueTasks), LabelKey: "overdue"}
@@ -348,6 +372,9 @@ func (s *Service) tile(mod tenancy.DashboardModule, pulse PulseView, cash *CashV
 		}
 		return tile
 	case tenancy.ModuleOccupancy:
+		if occPct != nil {
+			return TileView{Module: string(mod), Status: "live", Value: *occPct, LabelKey: "occupancy"}
+		}
 		return TileView{Module: string(mod), Status: "unavailable", ReasonKey: "dash.occupancyNotWired", LabelKey: "occupancy"}
 	default:
 		return TileView{Module: string(mod), Status: "unavailable", ReasonKey: "brief.sourceNotWired", LabelKey: string(mod)}

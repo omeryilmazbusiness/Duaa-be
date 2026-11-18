@@ -14,6 +14,7 @@ import (
 	httpadapter "github.com/dua-os/dua-os-be/internal/adapter/http"
 	"github.com/dua-os/dua-os-be/internal/adapter/llm"
 	"github.com/dua-os/dua-os-be/internal/adapter/memory"
+	"github.com/dua-os/dua-os-be/internal/adapter/ohip"
 	pgadapter "github.com/dua-os/dua-os-be/internal/adapter/postgres"
 	"github.com/dua-os/dua-os-be/internal/app/actor"
 	appapproval "github.com/dua-os/dua-os-be/internal/app/approval"
@@ -32,6 +33,9 @@ import (
 	appcash "github.com/dua-os/dua-os-be/internal/app/cash"
 	appdashboard "github.com/dua-os/dua-os-be/internal/app/dashboard"
 	appdecision "github.com/dua-os/dua-os-be/internal/app/decision"
+	appdoc "github.com/dua-os/dua-os-be/internal/app/docintake"
+	apphotelpms "github.com/dua-os/dua-os-be/internal/app/hotelpms"
+	appportfolio "github.com/dua-os/dua-os-be/internal/app/portfolio"
 	appreport "github.com/dua-os/dua-os-be/internal/app/report"
 	appstaff "github.com/dua-os/dua-os-be/internal/app/staff"
 	apptask "github.com/dua-os/dua-os-be/internal/app/task"
@@ -119,16 +123,55 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		if err := mem.AttachStockPersist(filepath.Join(cfg.DataDir, "cafe-stock.json")); err != nil {
 			return nil, fmt.Errorf("stock persist: %w", err)
 		}
+		if err := mem.AttachHotelPersist(filepath.Join(cfg.DataDir, "hotel-pms.json")); err != nil {
+			return nil, fmt.Errorf("hotel pms persist: %w", err)
+		}
+		if err := mem.AttachDocPersist(filepath.Join(cfg.DataDir, "workspace-docs.json")); err != nil {
+			return nil, fmt.Errorf("doc persist: %w", err)
+		}
+		if err := mem.AttachMeetingPersist(filepath.Join(cfg.DataDir, "assistant-meetings.json")); err != nil {
+			return nil, fmt.Errorf("meeting persist: %w", err)
+		}
 	}
 	log.Warn("storage", "driver", "memory", "hint", "set DATABASE_URL for postgres")
 	seed, err := SeedCafe(ctx, mem, clk.Now())
 	if err != nil {
 		return nil, err
 	}
+	hotels, err := SeedPortfolioHotels(ctx, mem, clk.Now())
+	if err != nil {
+		return nil, err
+	}
+	if err := restoreHotelNames(ctx, mem, hotels.SheratonID, hotels.AlShohadaID); err != nil {
+		return nil, err
+	}
 	app.Seed = seed
-	log.Info("cafe seed", "email", seed.GMEmail, "cafe", seed.CafeID.String())
+	log.Info("cafe seed", "email", seed.GMEmail, "cafe", seed.CafeID.String(), "sheraton", hotels.SheratonID.String(), "shohada", hotels.AlShohadaID.String())
 	app.Server = compose(cfg, registry, tokens, passwords, clk, vault, mem)
 	return app, nil
+}
+
+// restoreHotelNames re-applies saved hotel profiles over the memory seed, which recreates workspaces on boot.
+func restoreHotelNames(ctx context.Context, mem *memory.Store, ids ...id.ID) error {
+	for _, wid := range ids {
+		p, err := mem.GetHotelProfile(ctx, wid)
+		if err != nil {
+			continue
+		}
+		ws, err := mem.GetWorkspace(ctx, wid)
+		if err != nil {
+			return err
+		}
+		ws.Name = p.DisplayName
+		if p.Timezone != "" {
+			ws.Timezone = p.Timezone
+		}
+		ws.UpdatedAt = p.UpdatedAt
+		if err := mem.UpdateWorkspace(ctx, ws); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type kernelStore interface {
@@ -151,6 +194,7 @@ type kernelStore interface {
 	appapproval.Repository
 	appassistant.SettingsRepo
 	appassistant.UsageRepo
+	appassistant.MeetingRepo
 	appcafedef.Repository
 	appcafedef.WorkspaceWriter
 	appcafeqr.CodeRepo
@@ -163,6 +207,9 @@ type kernelStore interface {
 	appcafeprep.Repository
 	appcafewaste.Repository
 	appcafestock.Repository
+	apphotelpms.Repository
+	appdoc.Repository
+	appportfolio.Repository
 }
 
 type taskAssigner struct{ tasks *apptask.Service }
@@ -195,6 +242,8 @@ func compose(
 	cafePrep := appcafeprep.New(store, store, clk)
 	cafeWaste := appcafewaste.New(store, store, clk)
 	cafeStock := appcafestock.New(store, store, clk)
+	hotelPMS := apphotelpms.New(store, vault, ohip.NewClient(), clk).WithWorkspaces(store)
+	portfolioSvc := appportfolio.New(store, registry, clk)
 	briefs := appbrief.New(store, clk,
 		appbrief.HandoverSignal{Store: store},
 		appbrief.TaskSignal{Tasks: store, Members: store},
@@ -208,9 +257,13 @@ func compose(
 	)
 	reports := appreport.New(store, store, store, assigner, clk)
 	dashboard := appdashboard.New(store, store, store, store, store, store, store, store, clk)
+	dashboard.SetOccupancyReader(store)
 	gateway := llm.NewGateway(cfg.OpenAIBaseURL, cfg.GeminiBaseURL)
-	assistant := appassistant.New(store, store, vault, gateway,
-		assistantctx.New(dashboard, briefs, tasks, reports), gateway, clk)
+	docs := appdoc.New(store, &llm.DocEnricher{Settings: store, Cipher: vault, Gateway: gateway}, clk)
+	ctxProvider := assistantctx.New(dashboard, briefs, tasks, reports)
+	ctxProvider.SetPortfolio(portfolioSvc)
+	assistant := appassistant.New(store, store, vault, gateway, ctxProvider, gateway, clk)
+	assistant.SetVoiceCapabilities(gateway, store)
 	return &http.Server{
 		Addr:              cfg.HTTPAddr,
 		ReadHeaderTimeout: 5 * time.Second,
@@ -235,6 +288,9 @@ func compose(
 			Prep:      cafePrep,
 			Waste:     cafeWaste,
 			Stock:     cafeStock,
+			HotelPMS:  hotelPMS,
+			Docs:      docs,
+			Portfolio: portfolioSvc,
 			Actors:    actor.NewLoader(store, registry),
 			JWT:       tokens,
 		}),

@@ -56,3 +56,36 @@ type ContextProvider interface {
 type ModelLister interface {
 	ListModels(ctx context.Context, provider assistant.Provider, apiKey string) ([]string, error)
 }
+
+type AudioTranscribeRequest struct {
+	Provider     assistant.Provider
+	Model        string
+	APIKey       string
+	Audio        []byte
+	MimeType     string
+	FileName     string
+	LanguageHint string
+}
+
+type AudioTranscribeResult struct {
+	Text             string
+	DetectedLanguage string
+}
+
+type AudioSpeakRequest struct {
+	Provider assistant.Provider
+	APIKey   string
+	Text     string
+	Language string
+}
+
+// AudioGateway is optional: provides Whisper/Gemini audio transcription and OpenAI TTS.
+type AudioGateway interface {
+	Transcribe(ctx context.Context, req AudioTranscribeRequest) (AudioTranscribeResult, error)
+	Speak(ctx context.Context, req AudioSpeakRequest) (audio []byte, contentType string, err error)
+}
+
+type MeetingRepo interface {
+	SaveMeeting(ctx context.Context, rec assistant.MeetingRecord) error
+	ListMeetings(ctx context.Context, workspaceID id.ID, limit int) ([]assistant.MeetingRecord, error)
+}

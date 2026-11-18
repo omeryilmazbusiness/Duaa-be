@@ -2,12 +2,15 @@ package memory
 
 import (
 	"context"
+	"sort"
 	"sync"
 
 	"github.com/dua-os/dua-os-be/internal/domain/assistant"
 	"github.com/dua-os/dua-os-be/internal/domain/cafe"
+	"github.com/dua-os/dua-os-be/internal/domain/docintake"
 	"github.com/dua-os/dua-os-be/internal/domain/executive"
 	"github.com/dua-os/dua-os-be/internal/domain/finance"
+	"github.com/dua-os/dua-os-be/internal/domain/hotel"
 	"github.com/dua-os/dua-os-be/internal/domain/identity"
 	"github.com/dua-os/dua-os-be/internal/domain/opsreport"
 	"github.com/dua-os/dua-os-be/internal/domain/tenancy"
@@ -58,6 +61,14 @@ type Store struct {
 	stockCatalogs   map[id.ID]cafe.StockCatalog
 	stockAdjusts    map[id.ID]cafe.StockAdjustment
 	stockPersist    string
+	ohipConfigs     map[id.ID]hotel.OHIPConfig
+	pmsSnapshots    map[string]hotel.PMSSnapshot
+	hotelProfiles   map[id.ID]hotel.Profile
+	hotelPersist    string
+	docs            map[id.ID]docintake.Document
+	docPersist      string
+	meetings        map[id.ID]assistant.MeetingRecord
+	meetingPersist  string
 	emailIndex      map[string]id.ID
 	slugIndex       map[string]id.ID
 	employeeIdx     map[string]id.ID
@@ -93,6 +104,11 @@ func New() *Store {
 		recipeBooks:    map[id.ID]cafe.RecipeBook{},
 		stockCatalogs:  map[id.ID]cafe.StockCatalog{},
 		stockAdjusts:   map[id.ID]cafe.StockAdjustment{},
+		ohipConfigs:    map[id.ID]hotel.OHIPConfig{},
+		pmsSnapshots:   map[string]hotel.PMSSnapshot{},
+		hotelProfiles:  map[id.ID]hotel.Profile{},
+		docs:           map[id.ID]docintake.Document{},
+		meetings:       map[id.ID]assistant.MeetingRecord{},
 		emailIndex:     map[string]id.ID{},
 		slugIndex:      map[string]id.ID{},
 		employeeIdx:    map[string]id.ID{},
@@ -236,6 +252,12 @@ func (s *Store) ListMembershipsByUser(_ context.Context, userID id.ID) ([]identi
 			out = append(out, m)
 		}
 	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].CreatedAt.Before(out[j].CreatedAt)
+		}
+		return out[i].ID.String() < out[j].ID.String()
+	})
 	return out, nil
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/dua-os/dua-os-be/internal/adapter/assistantctx"
 	httpadapter "github.com/dua-os/dua-os-be/internal/adapter/http"
 	"github.com/dua-os/dua-os-be/internal/adapter/memory"
+	"github.com/dua-os/dua-os-be/internal/adapter/ohip"
 	"github.com/dua-os/dua-os-be/internal/app/actor"
 	appapproval "github.com/dua-os/dua-os-be/internal/app/approval"
 	appassistant "github.com/dua-os/dua-os-be/internal/app/assistant"
@@ -29,6 +30,9 @@ import (
 	appcash "github.com/dua-os/dua-os-be/internal/app/cash"
 	appdashboard "github.com/dua-os/dua-os-be/internal/app/dashboard"
 	appdecision "github.com/dua-os/dua-os-be/internal/app/decision"
+	appdoc "github.com/dua-os/dua-os-be/internal/app/docintake"
+	apphotelpms "github.com/dua-os/dua-os-be/internal/app/hotelpms"
+	appportfolio "github.com/dua-os/dua-os-be/internal/app/portfolio"
 	appreport "github.com/dua-os/dua-os-be/internal/app/report"
 	appstaff "github.com/dua-os/dua-os-be/internal/app/staff"
 	apptask "github.com/dua-os/dua-os-be/internal/app/task"
@@ -81,11 +85,17 @@ func newHarness(t *testing.T) harness {
 	)
 	reports := appreport.New(store, store, store, harnessAssigner{tasks: tasks}, clk)
 	dash := appdashboard.New(store, store, store, store, store, store, store, store, clk)
+	dash.SetOccupancyReader(store)
 	vault, err := secretbox.New("0123456789abcdef0123456789abcdef")
 	if err != nil {
 		t.Fatal(err)
 	}
 	fake := &fakeLLM{}
+	portSvc := appportfolio.New(store, reg, clk)
+	ctxProv := assistantctx.New(dash, briefs, tasks, reports)
+	ctxProv.SetPortfolio(portSvc)
+	asstSvc := appassistant.New(store, store, vault, fake, ctxProv, fake, clk)
+	asstSvc.SetVoiceCapabilities(fake, store)
 	api := httpadapter.API{
 		Auth:      appauth.New(store, store, store, reg, tokens, passwords, clk),
 		Staff:     appstaff.New(store, store, passwords, clk),
@@ -96,7 +106,7 @@ func newHarness(t *testing.T) harness {
 		Cash:      appcash.New(store, clk),
 		Approvals: appapproval.New(store, clk),
 		Dashboard: dash,
-		Assistant: appassistant.New(store, store, vault, fake, assistantctx.New(dash, briefs, tasks, reports), fake, clk),
+		Assistant: asstSvc,
 		Cafe:      appcafedef.New(store, store, clk),
 		QR:        cafeQR,
 		Intake:    appcafeintake.New(store, store, store, clk),
@@ -106,6 +116,9 @@ func newHarness(t *testing.T) harness {
 		Prep:      appcafeprep.New(store, store, clk),
 		Waste:     appcafewaste.New(store, store, clk),
 		Stock:     appcafestock.New(store, store, clk),
+		HotelPMS:  apphotelpms.New(store, vault, ohip.NewClient(), clk).WithWorkspaces(store),
+		Docs:      appdoc.New(store, nil, clk),
+		Portfolio: portSvc,
 		Actors:    actor.NewLoader(store, reg),
 		JWT:       tokens,
 	}

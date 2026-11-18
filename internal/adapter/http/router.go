@@ -21,6 +21,9 @@ import (
 	appcash "github.com/dua-os/dua-os-be/internal/app/cash"
 	appdashboard "github.com/dua-os/dua-os-be/internal/app/dashboard"
 	appdecision "github.com/dua-os/dua-os-be/internal/app/decision"
+	appdoc "github.com/dua-os/dua-os-be/internal/app/docintake"
+	apphotelpms "github.com/dua-os/dua-os-be/internal/app/hotelpms"
+	appportfolio "github.com/dua-os/dua-os-be/internal/app/portfolio"
 	appreport "github.com/dua-os/dua-os-be/internal/app/report"
 	appstaff "github.com/dua-os/dua-os-be/internal/app/staff"
 	apptask "github.com/dua-os/dua-os-be/internal/app/task"
@@ -52,6 +55,9 @@ type API struct {
 	Prep      *appcafeprep.Service
 	Waste     *appcafewaste.Service
 	Stock     *appcafestock.Service
+	HotelPMS  *apphotelpms.Service
+	Docs      *appdoc.Service
+	Portfolio *appportfolio.Service
 	Actors    *actor.Loader
 	JWT       *authn.JWT
 }
@@ -91,7 +97,9 @@ func NewRouter(cfg config.Config, api API) http.Handler {
 		r.Group(func(r chi.Router) {
 			r.Use(Authenticate(api.JWT))
 			r.Get("/me", api.me)
+			r.Get("/me/workspaces", api.myWorkspaces)
 			r.Post("/me/workspaces/{workspaceID}/select", api.switchWorkspace)
+			r.Get("/executive/portfolio", api.executivePortfolio)
 
 			r.Route("/workspaces/{workspaceID}", func(r chi.Router) {
 				r.Get("/staff", api.listStaff)
@@ -131,6 +139,11 @@ func NewRouter(cfg config.Config, api API) http.Handler {
 					r.Put("/settings", api.saveAssistantSettings)
 					r.Delete("/settings", api.deleteAssistantSettings)
 					r.Post("/chat", api.assistantChat)
+					r.Post("/translate", api.assistantTranslate)
+					r.Get("/meetings", api.assistantMeetingsList)
+					r.Post("/meetings/summarize", api.assistantMeetingsSummarize)
+					r.Post("/audio/transcribe", api.assistantAudioTranscribe)
+					r.Post("/audio/speak", api.assistantAudioSpeak)
 				})
 
 				r.Get("/cafe/definition", api.getCafeDefinition)
@@ -164,6 +177,16 @@ func NewRouter(cfg config.Config, api API) http.Handler {
 				r.Get("/cafe/stock", api.getCafeStock)
 				r.Put("/cafe/stock/catalog", api.putCafeStockCatalog)
 				r.Post("/cafe/stock/adjustments", api.recordCafeStockAdjustment)
+
+				r.Get("/hotel/pms", api.getHotelPMS)
+				r.Get("/hotel/profile", api.getHotelProfile)
+				r.Put("/hotel/profile", api.putHotelProfile)
+				r.Put("/hotel/ohip", api.putHotelOHIP)
+				r.Post("/hotel/ohip/sync", api.syncHotelOHIP)
+				r.Post("/hotel/pms/import", api.importHotelPMSSnapshot)
+
+				r.Get("/documents", api.listWorkspaceDocs)
+				r.Post("/documents", api.ingestWorkspaceDoc)
 			})
 		})
 	})

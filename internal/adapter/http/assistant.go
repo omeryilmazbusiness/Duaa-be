@@ -119,6 +119,7 @@ func (a API) assistantChat(w http.ResponseWriter, r *http.Request) {
 			Content string `json:"content"`
 		} `json:"messages"`
 		Locale string `json:"locale"`
+		Voice  bool   `json:"voice"`
 	}
 	if err := httpx.DecodeJSON(r, &body); err != nil {
 		httpx.WriteError(w, err)
@@ -128,7 +129,7 @@ func (a API) assistantChat(w http.ResponseWriter, r *http.Request) {
 	for _, m := range body.Messages {
 		msgs = append(msgs, assistant.Message{Role: assistant.Role(m.Role), Content: m.Content})
 	}
-	view, err := svc.Chat(r.Context(), ac, appassistant.ChatInput{Messages: msgs, Locale: body.Locale})
+	view, err := svc.Chat(r.Context(), ac, appassistant.ChatInput{Messages: msgs, Locale: body.Locale, Voice: body.Voice})
 	if err != nil {
 		httpx.WriteError(w, err)
 		return

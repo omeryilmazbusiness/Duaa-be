@@ -5,6 +5,7 @@ import (
 
 	"github.com/dua-os/dua-os-be/internal/domain/cafe"
 	"github.com/dua-os/dua-os-be/internal/domain/finance"
+	"github.com/dua-os/dua-os-be/internal/domain/hotel"
 	"github.com/dua-os/dua-os-be/internal/domain/identity"
 	"github.com/dua-os/dua-os-be/internal/domain/opsreport"
 	"github.com/dua-os/dua-os-be/internal/domain/work"
@@ -42,4 +43,8 @@ type SalesReader interface {
 
 type WasteReader interface {
 	ListWasteTickets(ctx context.Context, workspaceID id.ID, businessDate string) ([]cafe.WasteTicket, error)
+}
+
+type OccupancyReader interface {
+	GetPMSSnapshot(ctx context.Context, workspaceID id.ID, businessDate string) (hotel.PMSSnapshot, error)
 }

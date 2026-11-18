@@ -65,6 +65,14 @@ func (f *fakeLLM) ListModels(_ context.Context, _ assistant.Provider, _ string) 
 	return f.live, nil
 }
 
+func (f *fakeLLM) Transcribe(_ context.Context, req appassistant.AudioTranscribeRequest) (appassistant.AudioTranscribeResult, error) {
+	return appassistant.AudioTranscribeResult{Text: "What is the RevPAR today?", DetectedLanguage: "en"}, nil
+}
+
+func (f *fakeLLM) Speak(_ context.Context, req appassistant.AudioSpeakRequest) ([]byte, string, error) {
+	return []byte("MP3DATA"), "audio/mpeg", nil
+}
+
 func (f *fakeLLM) last() appassistant.CompletionRequest {
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -39,16 +39,18 @@ type LoginResult struct {
 }
 
 type WorkspaceOption struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Kind string `json:"kind"`
-	Slug string `json:"slug"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Kind     string `json:"kind"`
+	Slug     string `json:"slug"`
+	Timezone string `json:"timezone,omitempty"`
 }
 
 type SessionPayload struct {
 	User       UserPayload       `json:"user"`
 	Membership MembershipPayload `json:"membership"`
 	Workspace  WorkspacePayload  `json:"workspace"`
+	Workspaces []WorkspaceOption `json:"workspaces,omitempty"`
 	Scope      string            `json:"scope"`
 	ScopeLabel string            `json:"scopeLabel"`
 	Tabs       []string          `json:"tabs"`
@@ -64,17 +66,18 @@ type UserPayload struct {
 }
 
 type MembershipPayload struct {
-	ID             string `json:"id"`
-	Role           string `json:"role"`
+	ID              string `json:"id"`
+	Role            string `json:"role"`
 	StaffDepartment string `json:"staffDepartment"`
-	EmployeeNumber string `json:"employeeNumber,omitempty"`
+	EmployeeNumber  string `json:"employeeNumber,omitempty"`
 }
 
 type WorkspacePayload struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Kind string `json:"kind"`
-	Slug string `json:"slug"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Kind     string `json:"kind"`
+	Slug     string `json:"slug"`
+	Timezone string `json:"timezone,omitempty"`
 }
 
 func (s *Service) LoginEmail(ctx context.Context, email, password string) (LoginResult, error) {
@@ -96,14 +99,18 @@ func (s *Service) LoginEmail(ctx context.Context, email, password string) (Login
 	if len(memberships) == 0 {
 		return LoginResult{}, errx.Forbidden("no_membership", "no active workspace membership")
 	}
+	res, err := s.issue(ctx, user, memberships[0])
+	if err != nil {
+		return LoginResult{}, err
+	}
 	if len(memberships) > 1 {
 		opts, err := s.options(ctx, memberships)
 		if err != nil {
 			return LoginResult{}, err
 		}
-		return LoginResult{NeedsPick: true, Workspaces: opts}, nil
+		res.Workspaces = opts
 	}
-	return s.issue(ctx, user, memberships[0])
+	return res, nil
 }
 
 func (s *Service) SelectWorkspace(ctx context.Context, email, password, workspaceID string) (LoginResult, error) {
@@ -206,6 +213,18 @@ func (s *Service) SwitchWorkspace(ctx context.Context, p ctxkey.Principal, works
 	return LoginResult{}, errx.Forbidden("workspace_forbidden", "not a member of this workspace")
 }
 
+func (s *Service) Workspaces(ctx context.Context, p ctxkey.Principal) ([]WorkspaceOption, error) {
+	uid, err := id.Parse(p.UserID)
+	if err != nil {
+		return nil, errx.Unauthenticated("invalid token")
+	}
+	memberships, err := s.activeMemberships(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+	return s.options(ctx, memberships)
+}
+
 func (s *Service) activeMemberships(ctx context.Context, userID id.ID) ([]identity.Membership, error) {
 	all, err := s.members.ListMembershipsByUser(ctx, userID)
 	if err != nil {
@@ -230,7 +249,7 @@ func (s *Service) options(ctx context.Context, memberships []identity.Membership
 		if !ws.IsActive {
 			continue
 		}
-		out = append(out, WorkspaceOption{ID: ws.ID.String(), Name: ws.Name, Kind: string(ws.Kind), Slug: ws.Slug})
+		out = append(out, WorkspaceOption{ID: ws.ID.String(), Name: ws.Name, Kind: string(ws.Kind), Slug: ws.Slug, Timezone: ws.Timezone})
 	}
 	return out, nil
 }
@@ -285,6 +304,14 @@ func (s *Service) session(ctx context.Context, user identity.User, m identity.Me
 	if strings.HasSuffix(email, "@staff.internal") {
 		email = ""
 	}
+	allMemberships, err := s.activeMemberships(ctx, user.ID)
+	if err != nil {
+		return SessionPayload{}, err
+	}
+	opts, err := s.options(ctx, allMemberships)
+	if err != nil {
+		return SessionPayload{}, err
+	}
 	return SessionPayload{
 		User: UserPayload{
 			ID:        user.ID.String(),
@@ -299,11 +326,13 @@ func (s *Service) session(ctx context.Context, user identity.User, m identity.Me
 			EmployeeNumber:  m.EmployeeNumber,
 		},
 		Workspace: WorkspacePayload{
-			ID:   ws.ID.String(),
-			Name: ws.Name,
-			Kind: string(ws.Kind),
-			Slug: ws.Slug,
+			ID:       ws.ID.String(),
+			Name:     ws.Name,
+			Kind:     string(ws.Kind),
+			Slug:     ws.Slug,
+			Timezone: ws.Timezone,
 		},
+		Workspaces: opts,
 		Scope:      string(scope),
 		ScopeLabel: staffscope.Label(scope, m.Department),
 		Tabs:       tabIDs,

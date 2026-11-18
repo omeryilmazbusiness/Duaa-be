@@ -130,7 +130,7 @@ func scanMembership(row pgx.Row) (identity.Membership, error) {
 }
 
 func (s *Store) ListMembershipsByUser(ctx context.Context, userID id.ID) ([]identity.Membership, error) {
-	return s.queryMemberships(ctx, membershipSelect+` WHERE user_id=$1`, userID)
+	return s.queryMemberships(ctx, membershipSelect+` WHERE user_id=$1 ORDER BY created_at ASC, id ASC`, userID)
 }
 
 func (s *Store) ListWorkspaceMemberships(ctx context.Context, workspaceID id.ID) ([]identity.Membership, error) {

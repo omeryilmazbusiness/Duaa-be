@@ -17,12 +17,12 @@ import (
 const (
 	// Whole Chat() must finish before the Next.js rewrite (~30s) drops the
 	// socket; otherwise the widget stays on “thinking” forever.
-	chatBudget      = 16 * time.Second
-	chatTimeout     = 13 * time.Second
+	chatBudget      = 18 * time.Second
+	chatTimeout     = 15 * time.Second
 	setupBudget     = 10 * time.Second
 	verifyAttempt   = 4 * time.Second
 	listTimeout     = 6 * time.Second
-	chatMaxTokens   = 180
+	chatMaxTokens   = 480
 	chatTemperature = 0.2
 	verifyMaxTokens = 16
 )
@@ -34,6 +34,8 @@ type Service struct {
 	llm      Completer
 	snapshot ContextProvider
 	models   ModelLister
+	audio    AudioGateway
+	meetings MeetingRepo
 	clock    clock.Clock
 }
 
@@ -42,6 +44,11 @@ func New(settings SettingsRepo, usage UsageRepo, cipher Cipher, llm Completer, s
 		clk = clock.System{}
 	}
 	return &Service{settings: settings, usage: usage, cipher: cipher, llm: llm, snapshot: snapshot, models: models, clock: clk}
+}
+
+func (s *Service) SetVoiceCapabilities(audio AudioGateway, meetings MeetingRepo) {
+	s.audio = audio
+	s.meetings = meetings
 }
 
 type ModelOption struct {
@@ -100,6 +107,7 @@ type SaveInput struct {
 type ChatInput struct {
 	Messages []assistant.Message
 	Locale   string
+	Voice    bool
 }
 
 func (s *Service) GetSettings(ctx context.Context, ac actor.Context) (SettingsView, error) {
@@ -278,12 +286,12 @@ func (s *Service) Chat(ctx context.Context, ac actor.Context, in ChatInput) (Cha
 		return ChatView{}, errx.RateLimited("ai_daily_limit", "the daily AI question limit has been reached; it resets at midnight")
 	}
 
-	reply, err := s.complete(ctx, ac, cur, key, msgs, in.Locale, date)
+	reply, err := s.complete(ctx, ac, cur, key, msgs, in, date)
 	if recoverableChat(err) {
 		if next := assistant.FastFallback(cur.Provider, cur.Model); next != "" {
 			trial := cur
 			trial.Model = next
-			reply, err = s.complete(ctx, ac, trial, key, msgs, in.Locale, date)
+			reply, err = s.complete(ctx, ac, trial, key, msgs, in, date)
 			if err == nil {
 				cur.Model = next
 				cur.UpdatedAt = s.clock.Now()
@@ -293,7 +301,7 @@ func (s *Service) Chat(ctx context.Context, ac actor.Context, in ChatInput) (Cha
 		if recoverableChat(err) {
 			if next, ok := s.recoverModel(ctx, cur, key); ok {
 				cur.Model = next
-				reply, err = s.complete(ctx, ac, cur, key, msgs, in.Locale, date)
+				reply, err = s.complete(ctx, ac, cur, key, msgs, in, date)
 				if err == nil {
 					cur.UpdatedAt = s.clock.Now()
 					_ = s.settings.SaveAssistantSettings(context.WithoutCancel(ctx), cur)
@@ -332,14 +340,14 @@ func (s *Service) recoverModel(ctx context.Context, cur assistant.Settings, key 
 	return "", false
 }
 
-func (s *Service) complete(ctx context.Context, ac actor.Context, cur assistant.Settings, key string, msgs []assistant.Message, locale, date string) (string, error) {
+func (s *Service) complete(ctx context.Context, ac actor.Context, cur assistant.Settings, key string, msgs []assistant.Message, in ChatInput, date string) (string, error) {
 	snapshot, err := s.snapshot.Snapshot(ctx, ac)
 	if err != nil {
 		snapshot = "Workspace data is temporarily unavailable. Say so if the user asks about numbers."
 	}
 	system := assistant.SystemPrompt(assistant.PromptInput{
 		WorkspaceName: ac.Workspace.Name, WorkspaceKind: string(ac.Workspace.Kind),
-		BusinessDate: date, Locale: locale, Snapshot: snapshot,
+		BusinessDate: date, Locale: in.Locale, Voice: in.Voice, Snapshot: snapshot,
 	})
 	ctx, cancel := context.WithTimeout(ctx, chatTimeout)
 	defer cancel()

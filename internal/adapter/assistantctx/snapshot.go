@@ -12,8 +12,10 @@ import (
 	"github.com/dua-os/dua-os-be/internal/app/actor"
 	"github.com/dua-os/dua-os-be/internal/app/brief"
 	"github.com/dua-os/dua-os-be/internal/app/dashboard"
+	"github.com/dua-os/dua-os-be/internal/app/portfolio"
 	"github.com/dua-os/dua-os-be/internal/app/report"
 	"github.com/dua-os/dua-os-be/internal/app/task"
+	"github.com/dua-os/dua-os-be/internal/shared/ctxkey"
 )
 
 const (
@@ -39,15 +41,24 @@ type Reports interface {
 	List(ctx context.Context, ac actor.Context) ([]report.View, error)
 }
 
+type Portfolio interface {
+	Get(ctx context.Context, p ctxkey.Principal, date string) (portfolio.View, error)
+}
+
 type Provider struct {
-	dash    Dashboard
-	brief   Brief
-	tasks   Tasks
-	reports Reports
+	dash      Dashboard
+	brief     Brief
+	tasks     Tasks
+	reports   Reports
+	portfolio Portfolio
 }
 
 func New(d Dashboard, b Brief, t Tasks, r Reports) *Provider {
 	return &Provider{dash: d, brief: b, tasks: t, reports: r}
+}
+
+func (p *Provider) SetPortfolio(port Portfolio) {
+	p.portfolio = port
 }
 
 // Snapshot degrades per section: one failing source never blocks the chat.
@@ -65,6 +76,11 @@ func (p *Provider) Snapshot(ctx context.Context, ac actor.Context) (string, erro
 	if v, err := p.reports.List(ctx, ac); err == nil {
 		in.Reports, in.ReportsOK = v, true
 	}
+	if p.portfolio != nil {
+		if v, err := p.portfolio.Get(ctx, ac.Principal, ""); err == nil {
+			in.Portfolio = &v
+		}
+	}
 	return Format(in), nil
 }
 
@@ -75,6 +91,7 @@ type Input struct {
 	TasksOK   bool
 	Reports   []report.View
 	ReportsOK bool
+	Portfolio *portfolio.View
 }
 
 // Format renders the snapshot as compact plain text.
@@ -145,7 +162,48 @@ func Format(in Input) string {
 	}
 	writeTasks(&b, in, names)
 	writeReports(&b, in)
+	writePortfolio(&b, in.Portfolio)
 	return strings.TrimSpace(b.String())
+}
+
+func writePortfolio(b *strings.Builder, p *portfolio.View) {
+	if p == nil {
+		return
+	}
+	fmt.Fprintf(b, "\nPortfolio (all authorized businesses, date=%s, overall data completeness=%d%%):\n",
+		line(p.Date), p.Completeness.OverallPct)
+	for _, w := range p.Completeness.ByWorkspace {
+		fmt.Fprintf(b, "- Completeness %s (%s): %d%% (%d/%d feeds)\n", line(w.WorkspaceName), line(w.Kind), w.Pct, w.EnteredCount, w.ExpectedCount)
+	}
+	for _, tot := range p.Hotels.TotalsByCurrency {
+		fmt.Fprintf(b, "- Hotels combined (%d hotel(s), %s): today revenue=%.2f, yesterday=%.2f, change=%.2f\n",
+			tot.HotelCount, line(tot.Currency), float64(tot.TodayTotalRevenueMinor)/100.0, float64(tot.YesterdayRevenueMinor)/100.0, float64(tot.DeltaMinor)/100.0)
+	}
+	if p.Hotels.AvgOccupancyPct != nil {
+		fmt.Fprintf(b, "- Hotels avg occupancy=%.1f%% (%d/%d rooms occupied, arrivals=%d, departures=%d)\n",
+			*p.Hotels.AvgOccupancyPct, p.Hotels.OccupiedRooms, p.Hotels.AvailableRooms, p.Hotels.TotalArrivals, p.Hotels.TotalDepartures)
+	}
+	for _, h := range p.Hotels.Hotels {
+		if h.Freshness == "unavailable" {
+			fmt.Fprintf(b, "- Hotel %s: PMS unavailable (completeness=%d%%)\n", line(h.Name), h.CompletenessPct)
+			continue
+		}
+		occ := 0.0
+		if h.OccupancyPct != nil {
+			occ = *h.OccupancyPct
+		}
+		fmt.Fprintf(b, "- Hotel %s (%s, source=%s): occ=%.1f%%, today=%.2f %s, yesterday=%.2f %s, ADR=%.2f, RevPAR=%.2f, arrivals=%d, departures=%d\n",
+			line(h.Name), line(h.Freshness), line(h.Source), occ,
+			float64(h.TotalRevenueMinor)/100.0, line(h.Currency),
+			float64(h.YesterdayRevenueMinor)/100.0, line(h.Currency),
+			float64(h.ADRMinor)/100.0, float64(h.RevPARMinor)/100.0,
+			h.ArrivalsCount, h.DeparturesCount)
+	}
+	for _, c := range p.Cafes.Cafes {
+		fmt.Fprintf(b, "- Cafe %s: sales=%s (%d IQD), waste=%s (%d IQD), approvedExpenses=%d IQD, profitability=%s (est=%d IQD), stock=%s (low=%d), completeness=%d%%\n",
+			line(c.Name), line(c.SalesStatus), c.SalesNet, line(c.WasteStatus), c.WasteCost, c.Profitability.ApprovedExpenses,
+			line(c.Profitability.Status), c.Profitability.EstimatedNet, line(c.StockStatus), c.StockLowCount, c.CompletenessPct)
+	}
 }
 
 func writeTasks(b *strings.Builder, in Input, names map[string]string) {

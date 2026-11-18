@@ -73,6 +73,20 @@ func (a API) me(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, session)
 }
 
+func (a API) myWorkspaces(w http.ResponseWriter, r *http.Request) {
+	p, err := Principal(r)
+	if err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	list, err := a.Auth.Workspaces(r.Context(), p)
+	if err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"workspaces": list})
+}
+
 func (a API) switchWorkspace(w http.ResponseWriter, r *http.Request) {
 	p, err := Principal(r)
 	if err != nil {
