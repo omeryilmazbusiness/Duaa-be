@@ -42,6 +42,7 @@ func (Catalog) GMTabs() []tenancy.Tab {
 		tenancy.TabToday,
 		tenancy.TabOps,
 		tenancy.TabFeedback,
+		tenancy.TabInbox,
 	}
 }
 

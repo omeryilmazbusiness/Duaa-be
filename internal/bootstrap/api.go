@@ -15,6 +15,7 @@ import (
 	"github.com/dua-os/dua-os-be/internal/adapter/llm"
 	"github.com/dua-os/dua-os-be/internal/adapter/memory"
 	"github.com/dua-os/dua-os-be/internal/adapter/ohip"
+	"github.com/dua-os/dua-os-be/internal/adapter/outlook"
 	pgadapter "github.com/dua-os/dua-os-be/internal/adapter/postgres"
 	"github.com/dua-os/dua-os-be/internal/app/actor"
 	appapproval "github.com/dua-os/dua-os-be/internal/app/approval"
@@ -35,6 +36,7 @@ import (
 	appdecision "github.com/dua-os/dua-os-be/internal/app/decision"
 	appdoc "github.com/dua-os/dua-os-be/internal/app/docintake"
 	apphotelpms "github.com/dua-os/dua-os-be/internal/app/hotelpms"
+	appinbox "github.com/dua-os/dua-os-be/internal/app/inbox"
 	appportfolio "github.com/dua-os/dua-os-be/internal/app/portfolio"
 	appreport "github.com/dua-os/dua-os-be/internal/app/report"
 	appstaff "github.com/dua-os/dua-os-be/internal/app/staff"
@@ -209,7 +211,21 @@ type kernelStore interface {
 	appcafestock.Repository
 	apphotelpms.Repository
 	appdoc.Repository
+	appinbox.Repository
 	appportfolio.Repository
+}
+
+type inboxLLM struct{ gateway *llm.Gateway }
+
+func (b inboxLLM) Complete(ctx context.Context, req appinbox.CompletionRequest) (appinbox.CompletionResult, error) {
+	res, err := b.gateway.Complete(ctx, appassistant.CompletionRequest{
+		Provider: req.Provider, Model: req.Model, APIKey: req.APIKey, System: req.System,
+		Messages: req.Messages, MaxOutputTokens: req.MaxOutputTokens, Temperature: req.Temperature,
+	})
+	if err != nil {
+		return appinbox.CompletionResult{}, err
+	}
+	return appinbox.CompletionResult{Text: res.Text}, nil
 }
 
 type taskAssigner struct{ tasks *apptask.Service }
@@ -264,6 +280,12 @@ func compose(
 	ctxProvider.SetPortfolio(portfolioSvc)
 	assistant := appassistant.New(store, store, vault, gateway, ctxProvider, gateway, clk)
 	assistant.SetVoiceCapabilities(gateway, store)
+	outlookClient := outlook.New(cfg.MSGraphClientID, cfg.MSGraphClientSecret, cfg.MSGraphTenant, cfg.MSGraphRedirectURL)
+	inboxBridge := inboxLLM{gateway}
+	outlookFactory := func(clientID, clientSecret, tenant string) appinbox.MailClient {
+		return outlook.New(clientID, clientSecret, tenant, cfg.MSGraphRedirectURL)
+	}
+	inboxSvc := appinbox.New(store, vault, store, store, inboxBridge, outlookClient, outlookFactory, outlook.NewDemo(), clk, cfg.JWTSecret, cfg.PublicAppURL)
 	return &http.Server{
 		Addr:              cfg.HTTPAddr,
 		ReadHeaderTimeout: 5 * time.Second,
@@ -291,6 +313,7 @@ func compose(
 			HotelPMS:  hotelPMS,
 			Docs:      docs,
 			Portfolio: portfolioSvc,
+			Inbox:     inboxSvc,
 			Actors:    actor.NewLoader(store, registry),
 			JWT:       tokens,
 		}),

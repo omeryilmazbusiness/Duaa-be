@@ -22,6 +22,7 @@ import (
 	appdashboard "github.com/dua-os/dua-os-be/internal/app/dashboard"
 	appdecision "github.com/dua-os/dua-os-be/internal/app/decision"
 	appdoc "github.com/dua-os/dua-os-be/internal/app/docintake"
+	appinbox "github.com/dua-os/dua-os-be/internal/app/inbox"
 	apphotelpms "github.com/dua-os/dua-os-be/internal/app/hotelpms"
 	appportfolio "github.com/dua-os/dua-os-be/internal/app/portfolio"
 	appreport "github.com/dua-os/dua-os-be/internal/app/report"
@@ -58,6 +59,7 @@ type API struct {
 	HotelPMS  *apphotelpms.Service
 	Docs      *appdoc.Service
 	Portfolio *appportfolio.Service
+	Inbox     *appinbox.Service
 	Actors    *actor.Loader
 	JWT       *authn.JWT
 }
@@ -93,6 +95,7 @@ func NewRouter(cfg config.Config, api API) http.Handler {
 		r.Get("/public/qr/{token}", api.publicQR)
 		r.Get("/public/qr/{token}/image", api.publicQRImage)
 		r.Post("/public/qr/{token}", api.submitPublicQR)
+		r.Get("/inbox/outlook/callback", api.inboxOutlookCallback)
 
 		r.Group(func(r chi.Router) {
 			r.Use(Authenticate(api.JWT))
@@ -187,6 +190,20 @@ func NewRouter(cfg config.Config, api API) http.Handler {
 
 				r.Get("/documents", api.listWorkspaceDocs)
 				r.Post("/documents", api.ingestWorkspaceDoc)
+
+				r.Route("/inbox", func(r chi.Router) {
+					r.Get("/status", api.inboxStatus)
+					r.Get("/messages", api.inboxList)
+					r.Post("/sync", api.inboxSync)
+					r.Get("/messages/{messageID}", api.inboxGet)
+					r.Post("/messages/{messageID}/enrich", api.inboxEnrich)
+					r.Post("/outlook/app", api.inboxSaveOutlookApp)
+					r.Post("/outlook/start", api.inboxStartOutlook)
+					r.Post("/outlook/demo", api.inboxConnectDemo)
+					r.Delete("/connection", api.inboxDisconnect)
+					r.Post("/compose/translate", api.inboxTranslateCompose)
+					r.Post("/send", api.inboxSend)
+				})
 			})
 		})
 	})

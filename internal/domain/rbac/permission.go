@@ -28,6 +28,7 @@ const (
 	SubmitApproval  Permission = "approval.submit"
 	ActApproval     Permission = "approval.act"
 	UseAI           Permission = "ai.use"
+	ViewInbox       Permission = "inbox.view"
 	ViewCafe        Permission = "cafe.view"
 )
 
@@ -53,6 +54,8 @@ func Allows(scope staffscope.Kind, perm Permission) bool {
 		return scope == staffscope.GeneralManager || scope == staffscope.DepartmentManager
 	case UseAI:
 		// The AI assistant is a GM-only surface. Setup uses ManageWorkspace.
+		return scope == staffscope.GeneralManager
+	case ViewInbox:
 		return scope == staffscope.GeneralManager
 	case ViewCafe:
 		return scope == staffscope.GeneralManager || scope == staffscope.DepartmentManager || scope == staffscope.FloorOps

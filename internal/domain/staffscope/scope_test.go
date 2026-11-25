@@ -52,6 +52,9 @@ func TestCafeGMTabsHaveNoReservations(t *testing.T) {
 	if !tenancy.ContainsTab(tabs, tenancy.TabFeedback) {
 		t.Fatal("cafe GM must see feedback")
 	}
+	if !tenancy.ContainsTab(tabs, tenancy.TabInbox) {
+		t.Fatal("cafe GM must see inbox")
+	}
 	if staffscope.DefaultTab(staffscope.GeneralManager, cat) != tenancy.TabDashboard {
 		t.Fatal("GM lands on dashboard")
 	}
@@ -60,7 +63,7 @@ func TestCafeGMTabsHaveNoReservations(t *testing.T) {
 func TestHotelCatalogPreservesGuestProTabs(t *testing.T) {
 	cat := hotel.Catalog{}
 	tabs := staffscope.VisibleTabs(staffscope.GeneralManager, cat)
-	want := []tenancy.Tab{tenancy.TabToday, tenancy.TabOps, tenancy.TabDashboard, tenancy.TabReservations, tenancy.TabFeedback}
+	want := []tenancy.Tab{tenancy.TabToday, tenancy.TabOps, tenancy.TabDashboard, tenancy.TabReservations, tenancy.TabFeedback, tenancy.TabInbox}
 	if len(tabs) != len(want) {
 		t.Fatalf("tabs=%v", tabs)
 	}

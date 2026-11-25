@@ -45,6 +45,7 @@ const (
 	TabRooms        Tab = "rooms"
 	TabRequests     Tab = "requests"
 	TabFeedback     Tab = "feedback"
+	TabInbox        Tab = "inbox"
 	TabTeam         Tab = "team"
 	TabTasksStaff   Tab = "tasks_staff"
 	TabTasksDetail  Tab = "tasks_detail"

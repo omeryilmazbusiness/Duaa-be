@@ -433,7 +433,7 @@ func retryableModel(err error) bool {
 
 func recoverableChat(err error) bool {
 	switch errorCode(err) {
-	case "ai_model_not_found", "ai_request_rejected", "ai_empty_response":
+	case "ai_model_not_found", "ai_request_rejected", "ai_empty_response", "ai_provider_unavailable":
 		return true
 	default:
 		return false

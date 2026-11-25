@@ -19,7 +19,7 @@ func TestParseProviderAndModel(t *testing.T) {
 		t.Fatalf("unknown provider must be invalid, got %v", err)
 	}
 	model, err := assistant.NormalizeModel(assistant.ProviderGemini, "")
-	if err != nil || model != "gemini-3.1-flash-lite" {
+	if err != nil || model != "gemini-3.5-flash-lite" {
 		t.Fatalf("default model = %q, %v", model, err)
 	}
 	stripped, err := assistant.NormalizeModel(assistant.ProviderGemini, "models/gemini-2.5-flash")
@@ -58,17 +58,17 @@ func TestFreeGeminiIsTheDefaultSelection(t *testing.T) {
 		t.Fatalf("default provider must be listed first, got %s", first)
 	}
 	info, ok := assistant.InfoFor(assistant.DefaultProvider)
-	if !ok || info.DefaultModel != "gemini-3.1-flash-lite" {
+	if !ok || info.DefaultModel != "gemini-3.5-flash-lite" {
 		t.Fatalf("default model = %q", info.DefaultModel)
 	}
 }
 
 func TestFastFallbackSkipsCurrentDefault(t *testing.T) {
-	if got := assistant.FastFallback(assistant.ProviderGemini, "gemini-2.5-flash"); got != "gemini-3.1-flash-lite" {
+	if got := assistant.FastFallback(assistant.ProviderGemini, "gemini-2.5-flash"); got != "gemini-3.5-flash-lite" {
 		t.Fatalf("fallback = %q", got)
 	}
-	if got := assistant.FastFallback(assistant.ProviderGemini, "gemini-3.1-flash-lite"); got != "" {
-		t.Fatalf("default must not loop: %q", got)
+	if got := assistant.FastFallback(assistant.ProviderGemini, "gemini-3.5-flash-lite"); got != "gemini-3.5-flash" {
+		t.Fatalf("default overload fallback = %q", got)
 	}
 }
 

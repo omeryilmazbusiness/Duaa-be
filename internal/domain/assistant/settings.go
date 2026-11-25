@@ -59,10 +59,10 @@ type ProviderInfo struct {
 // Google AI Studio works at once.
 func Providers() []ProviderInfo {
 	return []ProviderInfo{
-		{ID: ProviderGemini, Label: "Google Gemini", DefaultModel: "gemini-3.1-flash-lite", Models: []ModelInfo{
-			{ID: "gemini-3.1-flash-lite", Free: true},
+		{ID: ProviderGemini, Label: "Google Gemini", DefaultModel: "gemini-3.5-flash-lite", Models: []ModelInfo{
 			{ID: "gemini-3.5-flash-lite", Free: true},
 			{ID: "gemini-3.5-flash", Free: true},
+			{ID: "gemini-3.1-flash-lite", Free: true},
 			{ID: "gemini-3.6-flash", Free: true},
 			{ID: "gemini-3.8-flash", Free: true},
 			{ID: "gemini-2.5-flash-lite", Free: true},
@@ -101,9 +101,19 @@ func (p Provider) DefaultModel() string {
 	return info.DefaultModel
 }
 
-// FastFallback is the generate-safe model to try when the stored id 404s or
-// 400s. Empty means the current model is already that fallback.
+// FastFallback is the generate-safe model to try when the stored id 404s,
+// 400s, or is temporarily unavailable. Empty means no alternate remains.
 func FastFallback(p Provider, current string) string {
+	if p == ProviderGemini {
+		for _, next := range []string{
+			"gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.8-flash",
+		} {
+			if next != current {
+				return next
+			}
+		}
+		return ""
+	}
 	next := p.DefaultModel()
 	if next == "" || next == current {
 		return ""

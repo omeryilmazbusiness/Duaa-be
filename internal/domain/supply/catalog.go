@@ -34,7 +34,7 @@ func (Catalog) EmailLoginDepartments() []tenancy.Department {
 func (Catalog) FloorOpsDepartment() tenancy.Department { return Sales }
 
 func (Catalog) GMTabs() []tenancy.Tab {
-	return []tenancy.Tab{tenancy.TabToday, tenancy.TabOps, tenancy.TabDashboard}
+	return []tenancy.Tab{tenancy.TabToday, tenancy.TabOps, tenancy.TabDashboard, tenancy.TabInbox}
 }
 
 func (Catalog) DepartmentManagerTabs() []tenancy.Tab {

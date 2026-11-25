@@ -55,6 +55,7 @@ func (Catalog) GMTabs() []tenancy.Tab {
 		tenancy.TabDashboard,
 		tenancy.TabReservations,
 		tenancy.TabFeedback,
+		tenancy.TabInbox,
 	}
 }
 

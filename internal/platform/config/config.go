@@ -30,26 +30,35 @@ type Config struct {
 	LogLevel     string
 	LogFormat    string
 	CORSOrigins  []string
+	// Microsoft Graph (Outlook inbox). Optional — demo mailbox works without these.
+	MSGraphClientID     string
+	MSGraphClientSecret string
+	MSGraphTenant       string
+	MSGraphRedirectURL  string
 }
 
 func Load() (Config, error) {
 	_ = godotenv.Load()
 	cfg := Config{
-		Env:             getenv("APP_ENV", "development"),
-		Version:         getenv("APP_VERSION", "0.1.0"),
-		HTTPAddr:        getenv("HTTP_ADDR", ":8080"),
-		ShutdownTimeout: duration("HTTP_SHUTDOWN_TIMEOUT", 15*time.Second),
-		JWTSecret:       getenv("JWT_SECRET", ""),
-		JWTTTL:          duration("JWT_TTL", 8*time.Hour),
-		EncryptionKey:   getenv("APP_ENCRYPTION_KEY", ""),
-		OpenAIBaseURL:   getenv("AI_OPENAI_BASE_URL", ""),
-		GeminiBaseURL:   getenv("AI_GEMINI_BASE_URL", ""),
-		DatabaseURL:     getenv("DATABASE_URL", ""),
-		DataDir:         getenv("DUA_DATA_DIR", "data"),
-		PublicAppURL:    getenv("PUBLIC_APP_URL", "http://localhost:3000"),
-		LogLevel:        getenv("LOG_LEVEL", "info"),
-		LogFormat:       getenv("LOG_FORMAT", "text"),
-		CORSOrigins:     split(getenv("CORS_ORIGINS", "http://localhost:3000")),
+		Env:                 getenv("APP_ENV", "development"),
+		Version:             getenv("APP_VERSION", "0.1.0"),
+		HTTPAddr:            getenv("HTTP_ADDR", ":8080"),
+		ShutdownTimeout:     duration("HTTP_SHUTDOWN_TIMEOUT", 15*time.Second),
+		JWTSecret:           getenv("JWT_SECRET", ""),
+		JWTTTL:              duration("JWT_TTL", 8*time.Hour),
+		EncryptionKey:       getenv("APP_ENCRYPTION_KEY", ""),
+		OpenAIBaseURL:       getenv("AI_OPENAI_BASE_URL", ""),
+		GeminiBaseURL:       getenv("AI_GEMINI_BASE_URL", ""),
+		DatabaseURL:         getenv("DATABASE_URL", ""),
+		DataDir:             getenv("DUA_DATA_DIR", "data"),
+		PublicAppURL:        getenv("PUBLIC_APP_URL", "http://localhost:3000"),
+		LogLevel:            getenv("LOG_LEVEL", "info"),
+		LogFormat:           getenv("LOG_FORMAT", "text"),
+		CORSOrigins:         split(getenv("CORS_ORIGINS", "http://localhost:3000")),
+		MSGraphClientID:     getenv("MS_GRAPH_CLIENT_ID", ""),
+		MSGraphClientSecret: getenv("MS_GRAPH_CLIENT_SECRET", ""),
+		MSGraphTenant:       getenv("MS_GRAPH_TENANT", "common"),
+		MSGraphRedirectURL:  getenv("MS_GRAPH_REDIRECT_URL", ""),
 	}
 	if len(cfg.JWTSecret) < 32 {
 		if cfg.Env == "production" {
@@ -57,6 +66,15 @@ func Load() (Config, error) {
 		}
 		if cfg.JWTSecret == "" {
 			cfg.JWTSecret = "dev-only-change-me-to-at-least-32-chars"
+		}
+	}
+	if cfg.MSGraphRedirectURL == "" {
+		cfg.MSGraphRedirectURL = strings.TrimRight(cfg.PublicAppURL, "/")
+		// Prefer API callback when PUBLIC_APP_URL is the FE; override via MS_GRAPH_REDIRECT_URL in prod.
+		if strings.Contains(cfg.MSGraphRedirectURL, "localhost:3000") {
+			cfg.MSGraphRedirectURL = "http://localhost:8080/v1/inbox/outlook/callback"
+		} else {
+			cfg.MSGraphRedirectURL = strings.TrimRight(cfg.PublicAppURL, "/") + "/v1/inbox/outlook/callback"
 		}
 	}
 	if len(cfg.EncryptionKey) < 32 {

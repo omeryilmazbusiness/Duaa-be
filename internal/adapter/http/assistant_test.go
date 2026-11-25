@@ -143,7 +143,7 @@ func TestAssistantSetupChatAndDailyLimit(t *testing.T) {
 		}
 	}
 	decode(t, get(h.handler, base+"/settings", token), &fresh)
-	if fresh.Provider != "gemini" || fresh.Model != "gemini-3.1-flash-lite" || fresh.Providers[0].ID != "gemini" {
+	if fresh.Provider != "gemini" || fresh.Model != "gemini-3.5-flash-lite" || fresh.Providers[0].ID != "gemini" {
 		t.Fatalf("fresh workspace must default to free Gemini: %+v", fresh)
 	}
 	if n := len(fresh.Providers[0].Models); n < 5 || !fresh.Providers[0].Models[0].Free {
@@ -278,7 +278,7 @@ func TestAssistantModelsAreLiveWhenKeyStored(t *testing.T) {
 		return out.Models
 	}
 
-	if m := list(); len(m) < 5 || m[0].ID != "gemini-3.1-flash-lite" || !m[0].Free {
+	if m := list(); len(m) < 5 || m[0].ID != "gemini-3.5-flash-lite" || !m[0].Free {
 		t.Fatalf("without a key the curated free Gemini list is served: %+v", m)
 	}
 
@@ -338,7 +338,7 @@ func TestAssistantChatRecoversWhenStoredAlias404s(t *testing.T) {
 		t.Fatalf("reply = %q", out.Reply)
 	}
 	got, err := h.store.GetAssistantSettings(t.Context(), h.seed.CafeID)
-	if err != nil || got.Model != "gemini-3.1-flash-lite" {
+	if err != nil || got.Model != "gemini-3.5-flash-lite" {
 		t.Fatalf("stored model after recover = %q, %v", got.Model, err)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/dua-os/dua-os-be/internal/domain/executive"
 	"github.com/dua-os/dua-os-be/internal/domain/finance"
 	"github.com/dua-os/dua-os-be/internal/domain/hotel"
+	"github.com/dua-os/dua-os-be/internal/domain/inbox"
 	"github.com/dua-os/dua-os-be/internal/domain/identity"
 	"github.com/dua-os/dua-os-be/internal/domain/opsreport"
 	"github.com/dua-os/dua-os-be/internal/domain/tenancy"
@@ -69,6 +70,8 @@ type Store struct {
 	docPersist      string
 	meetings        map[id.ID]assistant.MeetingRecord
 	meetingPersist  string
+	inboxConns      map[id.ID]inbox.Connection
+	inboxMsgs       map[id.ID]inbox.Message
 	emailIndex      map[string]id.ID
 	slugIndex       map[string]id.ID
 	employeeIdx     map[string]id.ID
@@ -109,6 +112,8 @@ func New() *Store {
 		hotelProfiles:  map[id.ID]hotel.Profile{},
 		docs:           map[id.ID]docintake.Document{},
 		meetings:       map[id.ID]assistant.MeetingRecord{},
+		inboxConns:     map[id.ID]inbox.Connection{},
+		inboxMsgs:      map[id.ID]inbox.Message{},
 		emailIndex:     map[string]id.ID{},
 		slugIndex:      map[string]id.ID{},
 		employeeIdx:    map[string]id.ID{},
